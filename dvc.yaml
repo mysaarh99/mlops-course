@@ -1,0 +1,21 @@
+stages:
+  prepare:
+    cmd: python scripts/prepare_data.py
+    outs:
+      - data/dataset.csv
+
+  train:
+    cmd: wandb agent t39ykh89
+    deps:
+      - data/dataset.csv
+      - scripts/train_logistic_wandb.py
+    outs:
+      - models/logistic_model_best.pkl
+      - models/vectorizer.pkl
+
+  predict:
+    cmd: python scripts/predict.py
+    deps:
+      - models/logistic_model_best.pkl
+      - models/vectorizer.pkl
+      - scripts/predict.py
