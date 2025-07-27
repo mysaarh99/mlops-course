@@ -1,10 +1,10 @@
 stages:
   # مراحل معالجة النصوص
   # مرحلة إعداد بيانات النصوص (prepare)
-  # prepare:
-  #   cmd: python scripts/prepare_data.py
-  #   outs:
-  #     - data/dataset.csv
+  prepare:
+    cmd: python scripts/prepare_data.py
+    outs:
+      - data/dataset.csv
 
   train:
     # cmd: wandb agent mysaarh99-academic-journals/mlops-course-scripts/qhjm49jp
@@ -16,14 +16,14 @@ stages:
       - scripts/train_logistic_wandb.py
     outs:
       - models/logistic_model_best.pkl
-      - models/vectorizer_trained.pkl
+      - models/vectorizer.pkl
 
   predict:
   # . مرحلة التنبؤ (predict)
     cmd: python scripts/predict.py
     deps:
       - models/logistic_model_best.pkl
-      - models/vectorizer_trained.pkl
+      - models/vectorizer.pkl
       - scripts/predict.py
 
   # مراحل معالجة CIFAR-10
