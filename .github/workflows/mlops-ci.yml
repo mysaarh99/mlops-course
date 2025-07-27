@@ -1,0 +1,48 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-train-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # --- 1) سحب الكود ---
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # --- 2) إعداد Python ---
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    # --- 3) تثبيت المتطلبات ---
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install dvc[all] wandb mlflow
+
+    # --- 4) إعادة تدريب النماذج باستخدام DVC ---
+    - name: Reproduce pipeline with DVC
+      run: dvc repro
+
+    # --- 5) تسجيل الدخول إلى Docker Hub (استخدم Secrets) ---
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+    # --- 6) بناء الصورة ---
+    - name: Build Docker image
+      run: docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest .
+
+    # --- 7) رفع الصورة إلى Docker Hub ---
+    - name: Push Docker image
+      run: docker push ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest

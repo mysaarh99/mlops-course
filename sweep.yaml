@@ -1,0 +1,11 @@
+program: scripts/train_logistic_wandb.py
+method: grid
+parameters:
+  C:
+    values: [0.1, 1, 10]
+  max_features:
+    values: [5000, 10000]
+  ngram_range:
+    values: 
+      - [1, 1]
+      - [1, 2]
