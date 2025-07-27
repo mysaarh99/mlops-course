@@ -29,6 +29,9 @@ jobs:
         pip install dvc[all] wandb mlflow
 
     # --- 4) إعادة تدريب النماذج باستخدام DVC ---
+    - name: Login to Weights & Biases
+      run: wandb login ${{ secrets.WANDB_API_KEY }}
+
     - name: Reproduce pipeline with DVC
       run: dvc repro
 

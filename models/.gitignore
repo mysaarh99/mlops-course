@@ -1,0 +1,5 @@
+/cifar10_model_wandb.keras
+/cifar10_model_mlflow.keras
+/cifar10_model_wandb_visual.keras
+/logistic_model_best.pkl
+/vectorizer.pkl
