@@ -1,21 +1,25 @@
 stages:
   # مراحل معالجة النصوص
-  prepare:
-    cmd: python scripts/prepare_data.py
-    outs:
-      - data/dataset.csv
+  # مرحلة إعداد بيانات النصوص (prepare)
+  # prepare:
+  #   cmd: python scripts/prepare_data.py
+  #   outs:
+  #     - data/dataset.csv
 
   train:
     # cmd: wandb agent mysaarh99-academic-journals/mlops-course-scripts/qhjm49jp
+    # مرحلة التدريب للنموذج اللوجستي للنصوص (train)
     cmd: python scripts/train_logistic_wandb.py
     deps:
       - data/dataset.csv
+      # - data/dataset_small.csv
       - scripts/train_logistic_wandb.py
     outs:
       - models/logistic_model_best.pkl
       - models/vectorizer_trained.pkl
 
   predict:
+  # . مرحلة التنبؤ (predict)
     cmd: python scripts/predict.py
     deps:
       - models/logistic_model_best.pkl
@@ -24,12 +28,14 @@ stages:
 
   # مراحل معالجة CIFAR-10
   prepare_cifar10:
+  #  مرحلة تحضير بيانات CIFAR-10 (prepare_cifar10)
     cmd: python scripts/prepare_cifar10.py
     outs:
       - data/cifar10/train.npz
       - data/cifar10/test.npz
 
   train_cifar10:
+  # مرحلة تدريب نموذج CIFAR-10 التقليدي (train_cifar10)
     cmd: python scripts/train_cifar10.py
     deps:
       - data/cifar10/train.npz
@@ -39,12 +45,14 @@ stages:
       - models/cifar10_model.keras
 
   predict_cifar10:
+  # مرحلة التنبؤ على نموذج CIFAR-10 التقليدي (predict_cifar10)
     cmd: python scripts/predict_cifar10.py
     deps:
       - models/cifar10_model.keras
       - scripts/predict_cifar10.py
       
   train_cifar10_wandb:
+  # تدريب نموذج CIFAR-10 مع تتبع W&B (train_cifar10_wandb)
     cmd: python scripts/train_cifar10_wandb.py
     deps:
       - data/cifar10/train.npz
@@ -54,6 +62,7 @@ stages:
       - models/cifar10_model_wandb.keras
 
   train_cifar10_mlflow:
+  #  تدريب نموذج CIFAR-10 مع تتبع MLflow (train_cifar10_mlflow)
     cmd: python scripts/train_cifar10_mlflow.py
     deps:
       - data/cifar10/train.npz
@@ -63,6 +72,7 @@ stages:
       - models/cifar10_model_mlflow.keras
 
   train_cifar10_wandb_visual:
+  # تدريب نموذج CIFAR-10 مع تتبع W&B بصري (train_cifar10_wandb_visual)
     cmd: python scripts/train_cifar10_wandb_visual.py
     deps:
       - data/cifar10/train.npz
@@ -72,6 +82,7 @@ stages:
       - models/cifar10_model_wandb_visual.keras
 
   predict_cifar10_visual:
+  # تنبؤ باستخدام النموذج البصري (predict_cifar10_visual)
     cmd: python scripts/predict_cifar10_visual.py
     deps:
       - models/cifar10_model_wandb_visual.keras

@@ -1,117 +1,117 @@
+# ========================
+# 📦 استيراد المكتبات اللازمة
+# ========================
 import os
 import pandas as pd
 import joblib
 import wandb
-import shutil
-
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
 # ================================
-# إعداد المعلمات لـ WandB
+# ⚙️ إعداد معلمات التجربة (Hyperparameters)
 # ================================
 params = {
-    "test_size": 0.2,
-    "ngram_range": (1, 2),
-    "C": 1.0,  # معلمة Logistic Regression
-    "max_features": 5000
+    "test_size": 0.2,               # نسبة البيانات المستخدمة للاختبار
+    "ngram_range": (1, 2),          # استخدام كلمات مفردة وثنائية في TF-IDF
+    "C": 1.0,                       # معلمة انتظام لنموذج Logistic Regression
+    "max_features": 5000            # الحد الأقصى لعدد الميزات النصية (كلمات) في TF-IDF
 }
 
-wandb.init(project="mlops_text_classification", name="logistic_regression_sweep", config=params)
+# ================================
+# 🧪 تهيئة جلسة تتبع في Weights & Biases (W&B)
+# ================================
+wandb.init(
+    project="mlops_text_classification",  # اسم المشروع في W&B
+    name="logistic_regression_run",       # اسم التجربة الحالية
+    config=params                          # تسجيل المعلمات مع W&B
+)
+
+# 🧩 استرجاع المعلمات من config (للتوافق مع sweeps لاحقًا)
 config = wandb.config
-
-# ⚠️ تحويل ngram_range من list إلى tuple إذا لزم الأمر
-ngram_range = tuple(config.ngram_range)
+ngram_range = tuple(config.ngram_range)  # تحويل ngram_range إلى tuple إذا لم يكن كذلك
 
 # ================================
-# تحميل البيانات
+# 📁 تحميل البيانات النصية من ملف CSV
 # ================================
-df = pd.read_csv("data/dataset.csv")
-df["text"] = df["text"].fillna("")
+# df = pd.read_csv("data/dataset.csv")     # تأكد أن الملف موجود في هذا المسار
+df = pd.read_csv("data/dataset_small.csv")     # تأكد أن الملف موجود في هذا المسار
 
+df["text"] = df["text"].fillna("")       # معالجة النصوص الفارغة بسلسلة فارغة
+
+# ================================
+# 🔀 تقسيم البيانات إلى تدريب واختبار
+# ================================
 X_train, X_test, y_train, y_test = train_test_split(
     df["text"], df["label"], test_size=config.test_size, random_state=42
 )
 
 # ================================
-# استخراج الميزات باستخدام TF-IDF
+# 🔤 تحويل النصوص إلى ميزات رقمية باستخدام TF-IDF
 # ================================
 vectorizer = TfidfVectorizer(
-    ngram_range=ngram_range,
-    stop_words="english",
-    max_features=config.max_features
+    ngram_range=ngram_range,             # مدى تركيب الجمل (1, 2) = unigram + bigram
+    stop_words="english",                # إزالة الكلمات الشائعة مثل "the", "and"
+    max_features=config.max_features     # تحديد عدد الميزات الأكثر شيوعًا
 )
+
+# تدريب الناقل على بيانات التدريب وتحويلها
 X_train_tfidf = vectorizer.fit_transform(X_train)
+# تحويل بيانات الاختبار بنفس ناقل الميزات المدرب
 X_test_tfidf = vectorizer.transform(X_test)
 
 # ================================
-# تدريب نموذج Logistic Regression
+# 🧠 تدريب نموذج Logistic Regression
 # ================================
 model = LogisticRegression(C=config.C, max_iter=1000)
-model.fit(X_train_tfidf, y_train)
+model.fit(X_train_tfidf, y_train)   # تدريب النموذج على بيانات TF-IDF
 
 # ================================
-# تقييم النموذج
+# 🧮 التنبؤ على بيانات الاختبار وتقييم الأداء
 # ================================
 y_pred = model.predict(X_test_tfidf)
-acc = accuracy_score(y_test, y_pred)
+acc = accuracy_score(y_test, y_pred)     # حساب الدقة على مجموعة الاختبار
 
+# تسجيل نتيجة الدقة في W&B
 wandb.log({"accuracy": acc})
+
+# طباعة المعلمات والدقة في الطرفية
 print(f"✅ Params: {dict(config)}")
 print(f"✅ Accuracy: {acc:.4f}")
 
 # ================================
-# حفظ النموذج والـ Vectorizer
+# 💾 حفظ النموذج وناقل الميزات (TF-IDF)
 # ================================
-# ================================
-# حفظ النموذج والـ Vectorizer (بعد التأكد أنهما مدربان)
-# ================================
-assert hasattr(vectorizer, "idf_"), "Vectorizer is not fitted before saving!"
+# التأكد من أن vectorizer قد تم تدريبه (fit) قبل الحفظ
+assert hasattr(vectorizer, "idf_"), "❌ Vectorizer غير مدرب!"
 
+# إنشاء مجلد لحفظ النماذج إن لم يكن موجودًا
 os.makedirs("models", exist_ok=True)
 
+# مسارات الملفات لحفظ النموذج والناقل
 model_path = f"models/logistic_model_C{config.C}.pkl"
 best_model_path = "models/logistic_model_best.pkl"
 vectorizer_path = "models/vectorizer_trained.pkl"
 
+# حفظ النموذج المدرب وناقل الميزات باستخدام joblib
 joblib.dump(model, model_path)
-joblib.dump(model, best_model_path)
+joblib.dump(model, best_model_path)         # نسخة موحدة للنشر أو التقييم
 joblib.dump(vectorizer, vectorizer_path)
 
+# ================================
+# 📦 تسجيل النموذج كـ Artifact في W&B
+# ================================
 artifact = wandb.Artifact("logistic_regression_model", type="model")
 artifact.add_file(model_path)
 artifact.add_file(best_model_path)
 artifact.add_file(vectorizer_path)
 
+# تسجيل الملفات وربطها بالتجربة
 wandb.save(best_model_path)
 wandb.log_artifact(artifact)
 
+# تأكيد الحفظ
 print(f"✅ Model saved at {best_model_path}")
 print(f"✅ Vectorizer saved at {vectorizer_path}")
-
-# os.makedirs("models", exist_ok=True)
-# model_path = f"models/logistic_model_C{config.C}.pkl"
-# best_model_path = "models/logistic_model_best.pkl"
-# vectorizer_path = "models/vectorizer.pkl"
-
-# # حفظ النموذج والـ Vectorizer
-# joblib.dump(model, model_path)
-# joblib.dump(model, best_model_path)  # نسخة موحدة لسهولة الوصول
-# joblib.dump(vectorizer, vectorizer_path)
-
-# # تسجيل Artifact مع WandB
-# artifact = wandb.Artifact("logistic_regression_model", type="model")
-# artifact.add_file(model_path)
-# artifact.add_file(best_model_path)
-# artifact.add_file(vectorizer_path)
-
-# wandb.save(best_model_path)
-# wandb.log_artifact(artifact)
-
-# print(f"✅ Model saved at {best_model_path}")
-# print(f"✅ Vectorizer saved at {vectorizer_path}")
-
-
-

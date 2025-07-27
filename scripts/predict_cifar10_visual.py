@@ -4,39 +4,47 @@ import random
 import wandb
 import os
 
-# إعداد W&B لجلسة التقرير
+# إعداد جلسة Weights & Biases لتتبع التجربة
 wandb.init(project="mlops_cifar10", name="cifar10_final_visual_report")
 
-# تحميل النموذج النهائي
+# تحديد مسار النموذج المدرب مسبقًا
 model_path = "models/cifar10_model_wandb_visual.keras"
+
+# التحقق من وجود النموذج، إذا لم يكن موجودًا، إظهار خطأ وإيقاف التنفيذ
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"❌ لم يتم العثور على النموذج: {model_path}. تأكد أنك شغّلت مرحلة التدريب أولاً.")
 
+# تحميل النموذج باستخدام TensorFlow
 model = tf.keras.models.load_model(model_path)
 
-# تحميل بيانات الاختبار
+# تحميل بيانات الاختبار (صور + تسميات)
 test_data = np.load("data/cifar10/test.npz")
 x_test, y_test = test_data["x"], test_data["y"]
 
-# أسماء الفئات
+# أسماء الفئات المستخدمة في CIFAR-10 لتسهيل التفسير البصري
 classes = ["airplane", "automobile", "bird", "cat", "deer",
            "dog", "frog", "horse", "ship", "truck"]
 
-# اختيار 20 صورة عشوائية
+# اختيار 20 صورة عشوائية من بيانات الاختبار لعرضها في التقرير البصري
 sample_indices = random.sample(range(len(x_test)), 20)
 sample_images = x_test[sample_indices]
-sample_labels = y_test[sample_indices].flatten()
+sample_labels = y_test[sample_indices].flatten()  # جعل التسميات أحادية الأبعاد
 
-# تنبؤات النموذج
+# استخدام النموذج لتحليل الصور المختارة والحصول على التنبؤات (احتمالات الفئات)
 predictions = model.predict(sample_images)
+# اختيار الفئة ذات الاحتمال الأعلى لكل صورة (التنبؤ الفعلي)
 pred_labels = np.argmax(predictions, axis=1)
 
-# رفع الصور إلى W&B مع العناوين
+# إعداد قائمة لتخزين الصور مع عناوين توضيحية حقيقية ومتوقعة
 wandb_images = []
 for img, true_label, pred_label in zip(sample_images, sample_labels, pred_labels):
+    # تكوين التسمية النصية لكل صورة (الحقيقة مقابل التنبؤ)
     caption = f"True: {classes[true_label]}, Pred: {classes[pred_label]}"
+    # إضافة الصورة مع التعليق إلى قائمة صور W&B
     wandb_images.append(wandb.Image(img, caption=caption))
 
+# رفع الصور والتسميات إلى Weights & Biases كسجل بصري للتقرير النهائي
 wandb.log({"final_visual_report": wandb_images})
 
+# طباعة رسالة توضح أن التقرير البصري تم إنشاؤه ورفعه بنجاح
 print("✅ تم إنشاء تقرير بصري للنموذج النهائي (20 صورة) ورفعه إلى W&B.")
