@@ -1,0 +1,6 @@
+wandb_version: 1
+
+alpha:
+  value: 1
+test_size:
+  value: 0.31609734803264744

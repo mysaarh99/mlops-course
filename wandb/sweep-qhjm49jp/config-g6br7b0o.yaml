@@ -1,0 +1,10 @@
+wandb_version: 1
+
+C:
+  value: 0.1
+max_features:
+  value: 10000
+ngram_range:
+  value:
+  - 1
+  - 1
