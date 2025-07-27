@@ -32,6 +32,9 @@ jobs:
     - name: Login to Weights & Biases
       run: wandb login ${{ secrets.WANDB_API_KEY }}
 
+    # - name: Generate dataset (sample) before pipeline
+    #   run: python scripts/prepare_data.py
+
     # --- 5) تشغيل خط DVC (بما في ذلك توليد dataset.csv من النسخة المصغرة) ---
 
     - name: Reproduce pipeline with DVC

@@ -109,7 +109,7 @@ artifact.add_file(best_model_path)
 artifact.add_file(vectorizer_path)
 
 # تسجيل الملفات وربطها بالتجربة
-wandb.save(best_model_path)
+# wandb.save(best_model_path)
 wandb.log_artifact(artifact)
 
 # تأكيد الحفظ

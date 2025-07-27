@@ -56,7 +56,7 @@ with mlflow.start_run():
 
     # 📊 إنشاء قوائم لتخزين الأداء بهدف تحليل لاحق (اختياري)
     train_acc_list, val_acc_list = [], []
-    train_loss_list, val_loss_list = []
+    train_loss_list, val_loss_list = [], []
 
     # 🔁 تدريب النموذج وتسجيل الأداء لكل Epoch
     for epoch in range(epochs):
