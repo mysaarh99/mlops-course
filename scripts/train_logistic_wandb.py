@@ -36,8 +36,8 @@ ngram_range = tuple(config.ngram_range)  # تحويل ngram_range إلى tuple �
 # ================================
 # 📁 تحميل البيانات النصية من ملف CSV
 # ================================
-# df = pd.read_csv("data/dataset.csv")     # تأكد أن الملف موجود في هذا المسار
-df = pd.read_csv("data/dataset_small.csv")     # تأكد أن الملف موجود في هذا المسار
+df = pd.read_csv("data/dataset.csv")     # تأكد أن الملف موجود في هذا المسار
+# df = pd.read_csv("data/dataset_small.csv")     # تأكد أن الملف موجود في هذا المسار
 
 df["text"] = df["text"].fillna("")       # معالجة النصوص الفارغة بسلسلة فارغة
 
@@ -93,7 +93,7 @@ os.makedirs("models", exist_ok=True)
 # مسارات الملفات لحفظ النموذج والناقل
 model_path = f"models/logistic_model_C{config.C}.pkl"
 best_model_path = "models/logistic_model_best.pkl"
-vectorizer_path = "models/vectorizer_trained.pkl"
+vectorizer_path = "models/vectorizer.pkl"
 
 # حفظ النموذج المدرب وناقل الميزات باستخدام joblib
 joblib.dump(model, model_path)

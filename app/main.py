@@ -9,7 +9,7 @@ import io
 
 # تحميل نموذج النصوص (Logistic Regression + Vectorizer)
 text_model_path = "models/logistic_model_best.pkl"
-vectorizer_path = "models/vectorizer_trained.pkl"
+vectorizer_path = "models/vectorizer.pkl"
 text_model = joblib.load(text_model_path) if os.path.exists(text_model_path) else None
 vectorizer = joblib.load(vectorizer_path) if os.path.exists(vectorizer_path) else None
 
