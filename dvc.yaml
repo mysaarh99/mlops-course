@@ -1,6 +1,6 @@
 stages:
   clean_models:
-    cmd: powershell -Command "Remove-Item -Recurse -Force models/* -ErrorAction SilentlyContinue"
+    cmd: python -c "import shutil, os; shutil.rmtree('models', ignore_errors=True); os.makedirs('models', exist_ok=True)"
     always_changed: true  # حتى تعمل دائمًا
   # --- بيانات النصوص ---
   prepare_data_text:
