@@ -12,7 +12,7 @@ loguru==0.7.2
 numpy==1.24.3
 pandas==2.0.1
 joblib==1.3.2
-nltk==3.8.1  # Optional: For tokenization if using text features
+# nltk==3.8.1   # Optional: For tokenization if using text features => issue 
 
 # ========== API & Web Serving ==========
 fastapi==0.95.2

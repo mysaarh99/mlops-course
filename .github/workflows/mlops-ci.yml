@@ -25,10 +25,11 @@ jobs:
     - name: Cache pip
       uses: actions/cache@v3
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements-ci.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+       path: ~/.cache/pip
+       key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+       restore-keys: |
+        ${{ runner.os }}-pip-
+
 
     #  تثبيت المتطلبات ---
     # - name: Install dependencies
@@ -41,7 +42,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install dvc[all] wandb mlflow
+    
+
+     # pip install dvc[all] wandb mlflow
 
     #  تسجيل الدخول إلى WandB لتتبع التجارب ---
     - name: Login to Weights & Biases
