@@ -87,12 +87,12 @@ stages:
       size: 43626377
     - path: models/cifar10_model_wandb_visual.keras
       hash: md5
-      md5: 03ad5a09966ae3212590331cbd35421a
+      md5: 6b065127430d4bf55f63fb06d9733225
       size: 2048114
     - path: scripts/predict_cifar10_visual.py
       hash: md5
-      md5: a21dbbada646a800df440233cf67674d
-      size: 2763
+      md5: 15b5fcce34f90b01853a3969f5a41bd2
+      size: 2825
   train:
     cmd: python scripts/train_logistic_wandb.py
     deps:
@@ -160,7 +160,8 @@ stages:
       md5: a024a6548210e6fde7bd64f736a0cc31
       size: 1514
   clean_models:
-    cmd: powershell -Command "Remove-Item -Recurse -Force models/* -ErrorAction SilentlyContinue"
+    cmd: python -c "import shutil, os; shutil.rmtree('models', ignore_errors=True);
+      os.makedirs('models', exist_ok=True)"
   prepare_data_text:
     cmd: python scripts/prepare_data.py
     deps:
@@ -241,12 +242,12 @@ stages:
       size: 218341263
     - path: scripts/train_cifar10_wandb_visual.py
       hash: md5
-      md5: bc5f365f9ea7111a2ffab54b204755c9
-      size: 5328
+      md5: 6a0a92cd6eed8a71ae14c0669ac6b20b
+      size: 5327
     outs:
     - path: models/cifar10_model_wandb_visual.keras
       hash: md5
-      md5: 03ad5a09966ae3212590331cbd35421a
+      md5: 6b065127430d4bf55f63fb06d9733225
       size: 2048114
   predict_cifar10_baseline:
     cmd: python scripts/predict_cifar10.py
@@ -257,5 +258,5 @@ stages:
       size: 2048114
     - path: scripts/predict_cifar10.py
       hash: md5
-      md5: a024a6548210e6fde7bd64f736a0cc31
+      md5: 1d54b441658a247c566a0ee8ffdf951c
       size: 1514

@@ -101,12 +101,13 @@ async def predict_text(text: str = Form(...)):
         prediction = text_model.predict(text_vec)[0]
         end = time.time()
 
-        wandb.log({
-            "endpoint": "predict-text",
-            "input_text": text,
-            "predicted_class": int(prediction),
-            "inference_time_sec": end - start
-        })
+        with wandb.init(project=wandb_project, entity=wandb_entity, job_type="inference", reinit=True) as run:
+            run.log({
+                "endpoint": "predict-text",
+                "input_text": text,
+                "predicted_class": int(prediction),
+                "inference_time_sec": end - start
+            })
 
         return {"input_text": text, "predicted_class": int(prediction)}
     except Exception as e:
@@ -127,29 +128,24 @@ async def predict_text(text: str = Form(...)):
 #         "confidence": confidence
 #     }
 
-@app.post("/predict-image")
-async def predict_image(file: UploadFile = File(...)):
-    if image_model is None:
-        return JSONResponse({"error": "Image model not available."}, status_code=500)
+@app.post("/predict-text")
+async def predict_text(text: str = Form(...)):
+    if text_model is None or vectorizer is None:
+        return JSONResponse({"error": "Text model not available."}, status_code=500)
     try:
         start = time.time()
-        image_bytes = await file.read()
-        input_data = preprocess_image(image_bytes)
-        predictions = image_model.predict(input_data)
-        pred_index = np.argmax(predictions, axis=1)[0]
-        confidence = float(np.max(predictions))
+        text_vec = vectorizer.transform([text])
+        prediction = text_model.predict(text_vec)[0]
         end = time.time()
 
-        wandb.log({
-            "endpoint": "predict-image",
-            "predicted_class": cifar_classes[pred_index],
-            "confidence": confidence,
-            "inference_time_sec": end - start
-        })
+        with wandb.init(project=wandb_project, entity=wandb_entity, job_type="inference", reinit=True) as run:
+            run.log({
+                "endpoint": "predict-text",
+                "input_text": text,
+                "predicted_class": int(prediction),
+                "inference_time_sec": end - start
+            })
 
-        return {
-            "predicted_class": cifar_classes[pred_index],
-            "confidence": confidence
-        }
+        return {"input_text": text, "predicted_class": int(prediction)}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
