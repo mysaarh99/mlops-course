@@ -10,7 +10,7 @@ test_data = np.load("data/cifar10/test.npz")
 x_test, y_test = test_data["x"], test_data["y"]
 
 # اختيار 5 صور عشوائية من بيانات الاختبار (بدون تكرار)
-idxs = np.random.choice(len(x_test), 5, replace=False)
+idxs = np.random.choice(len(x_test), 2, replace=False)
 images, labels = x_test[idxs], y_test[idxs]
 
 # التنبؤ بالفئات لكل صورة مختارة

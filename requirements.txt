@@ -20,6 +20,8 @@ uvicorn==0.29.0
 tensorflow==2.15.0
 pillow
 python-multipart
+aiofiles>=23.1.0
+loguru==0.7.2
 
 # Notebook
 cleanlab==2.3.1

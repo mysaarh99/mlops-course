@@ -22,7 +22,7 @@ config = wandb.config
 config.epochs = 5                                 # عدد Epochs
 config.batch_size = 64                            # حجم كل Batch
 config.learning_rate = 0.001                      # معدل التعلم
-config.num_visual_samples = 10                    # عدد الصور التي سنعرضها بصريًا في كل Epoch
+config.num_visual_samples = 2                    # عدد الصور التي سنعرضها بصريًا في كل Epoch
 
 # ========================
 # 📥 تحميل بيانات CIFAR-10 المخزنة محليًا

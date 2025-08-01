@@ -26,7 +26,7 @@ classes = ["airplane", "automobile", "bird", "cat", "deer",
            "dog", "frog", "horse", "ship", "truck"]
 
 # اختيار 20 صورة عشوائية من بيانات الاختبار لعرضها في التقرير البصري
-sample_indices = random.sample(range(len(x_test)), 20)
+sample_indices = random.sample(range(len(x_test)), 3)
 sample_images = x_test[sample_indices]
 sample_labels = y_test[sample_indices].flatten()  # جعل التسميات أحادية الأبعاد
 
@@ -44,7 +44,10 @@ for img, true_label, pred_label in zip(sample_images, sample_labels, pred_labels
     wandb_images.append(wandb.Image(img, caption=caption))
 
 # رفع الصور والتسميات إلى Weights & Biases كسجل بصري للتقرير النهائي
-wandb.log({"final_visual_report": wandb_images})
-
+wandb.log({
+    "final_visual_report": wandb_images,
+    "endpoint": "predict_cifar10_visual",
+    "sample_size": len(sample_images)
+})
 # طباعة رسالة توضح أن التقرير البصري تم إنشاؤه ورفعه بنجاح
-print("✅ تم إنشاء تقرير بصري للنموذج النهائي (20 صورة) ورفعه إلى W&B.")
+print("✅ Final visual report (3 sample images) successfully logged to Weights & Biases.")
