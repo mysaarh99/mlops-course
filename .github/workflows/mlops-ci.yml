@@ -11,69 +11,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    #  سحب الكود ---
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # ✅ سحب الكود
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # إعداد Python ---
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      # ✅ إعداد Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
- # إعداد cache pip ---
-    - name: Cache pip
-      uses: actions/cache@v3
-      with:
-       path: ~/.cache/pip
-       key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-       restore-keys: |
-        ${{ runner.os }}-pip-
+      # ✅ Cache pip
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
+      # ✅ تثبيت المتطلبات
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    #  تثبيت المتطلبات ---
-    # - name: Install dependencies
-    #   run: |
-    #     python -m pip install --upgrade pip
-    #     pip install -r requirements-ci.txt
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-
-     # pip install dvc[all] wandb mlflow
-
-    #  تسجيل الدخول إلى WandB لتتبع التجارب ---
-    - name: Login to Weights & Biases
-      run: wandb login ${{ secrets.WANDB_API_KEY }}
+      # ✅ تسجيل الدخول إلى Weights & Biases
+      - name: Login to Weights & Biases
+        run: wandb login ${{ secrets.WANDB_API_KEY }}
 
     #  تشغيل خط DVC (توليد البيانات والتدريب) ---
-    - name: Reproduce pipeline with DVC
-      run: dvc repro
+      - name: Reproduce pipeline with DVC
+        run: dvc repro
 
-    #  تسجيل الدخول إلى Docker Hub ---
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      # ✅ إعداد Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    # --- إنشاء tag جديد باستخدام التاريخ والوقت ---
-    - name: Generate Docker image tag
-      id: tagger
-      run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+      # ✅ Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
 
-    #  بناء الصورة ---
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest \
-                     -t ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:${{ steps.tagger.outputs.tag }} .
+      # ✅ تسجيل الدخول إلى Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-    #  رفع الصورة إلى Docker Hub ---
-    - name: Push Docker images
-      run: |
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:${{ steps.tagger.outputs.tag }}
+      # ✅ إنشاء tag زمني
+      - name: Generate Docker image tag
+        id: tagger
+        run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+
+      # ✅ بناء ورفع صورة Docker
+      - name: Build and Push Docker Image with cache
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:${{ steps.tagger.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
