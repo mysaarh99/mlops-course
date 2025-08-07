@@ -1,7 +1,7 @@
 stages:
   clean_models:
     cmd: python -c "import shutil, os; shutil.rmtree('models', ignore_errors=True); os.makedirs('models', exist_ok=True)"
-    always_changed: true
+    # always_changed: true
   # --- بيانات النصوص ---
   prepare_data_text:
     cmd: python scripts/prepare_data.py

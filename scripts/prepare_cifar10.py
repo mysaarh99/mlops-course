@@ -4,6 +4,17 @@ import os
 
 # دالة لتحضير وتحميل مجموعة بيانات CIFAR-10
 def prepare_cifar10():
+
+    train_path = "data/cifar10/train.npz"
+    test_path = "data/cifar10/test.npz"
+
+    # إذا كانت البيانات موجودة مسبقًا، لا تقم بإعادة التحميل
+    if os.path.exists(train_path) and os.path.exists(test_path):
+        print("✅ CIFAR-10 dataset already exists. Skipping download.")
+        return
+
+    print("📥 Downloading and preparing CIFAR-10 dataset...")
+
     # تحميل بيانات CIFAR-10 (صور تدريب + تسميات، صور اختبار + تسميات)
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
 
