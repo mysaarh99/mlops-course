@@ -55,6 +55,11 @@ jobs:
       # =======================
       # 6️⃣ تشغيل خط DVC
       # =======================
+
+      - name: 📥 DVC pull data
+        run: dvc pull
+
+   
       - name: ⚙️ Reproduce pipeline with DVC
         run: |
           echo "=== Running DVC pipeline ==="

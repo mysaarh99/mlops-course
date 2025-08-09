@@ -1,4 +1,7 @@
 [core]
-    remote = gdrive
-['remote "gdrive"']
-    url = gdrive://1tV2nfuICEVwKu0FBKGpv73jxI5e0Kw9z
+    remote = origin
+['remote "origin"']
+    url = ssh://root@31.44.0.199:/root/dvc-storage
+    user = root
+    keyfile = C:/Users/MysaaAlrahal/.ssh/dvc_key
+    ask_password = false
