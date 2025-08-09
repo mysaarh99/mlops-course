@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, Form, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import tensorflow as tf
 import numpy as np
 import joblib
@@ -9,7 +10,6 @@ import io
 import time
 import logging
 import wandb
-import time
 
 
 # 🔧 إعداد السجل
@@ -81,43 +81,38 @@ def preprocess_image(image_bytes):
     img_array = np.array(image) / 255.0
     return np.expand_dims(img_array, axis=0)
 
-# 🔤 واجهة التنبؤ للنصوص
-# @app.post("/predict-text")
-# async def predict_text(text: str = Form(...)):
-#     if text_model is None or vectorizer is None:
-#         return JSONResponse({"error": "نموذج النصوص غير متاح."}, status_code=500)
-#     text_vec = vectorizer.transform([text])
-#     prediction = text_model.predict(text_vec)[0]
-#     return {"input_text": text, "predicted_class": int(prediction)}
+# 🔤 نموذج الطلب للنصوص (بدل Body/Form المباشر)
+class PredictTextRequest(BaseModel):
+    text: str
 
-# الدالة الجديدة تساعد في عملية المراقبة ما بعد النشر باستخدام wandb مما يسمح لنا برفع المعلومات وتخزينها هنا
-@app.post("/predict-text")
-async def predict_text(text: str = Form(...)):
+# 🔤 واجهة التنبؤ للنصوص — **مفردة** وبـ BaseModel
+@app.post("/predict-text", name="predict_text_v1")
+async def predict_text(req: PredictTextRequest):
     if text_model is None or vectorizer is None:
         return JSONResponse({"error": "Text model not available."}, status_code=500)
     try:
         start = time.time()
-        text_vec = vectorizer.transform([text])
+        text_vec = vectorizer.transform([req.text])
         prediction = text_model.predict(text_vec)[0]
         end = time.time()
 
         with wandb.init(project=wandb_project, entity=wandb_entity, job_type="inference", reinit=True) as run:
             run.log({
                 "endpoint": "predict-text",
-                "input_text": text,
+                "input_text": req.text,
                 "predicted_class": int(prediction),
                 "inference_time_sec": end - start
             })
 
-        return {"input_text": text, "predicted_class": int(prediction)}
+        return {"input_text": req.text, "predicted_class": int(prediction)}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
-# 🖼️ واجهة التنبؤ للصور
+#  واجهة التنبؤ للصور (اتركها كما هي/معلّقة حسب حاجتك)
 # @app.post("/predict-image")
 # async def predict_image(file: UploadFile = File(...)):
 #     if image_model is None:
-#         return JSONResponse({"error": "نموذج الصور غير متاح."}, status_code=500)
+#         return JSONResponse({"error": "Image model not available."}, status_code=500)
 #     image_bytes = await file.read()
 #     input_data = preprocess_image(image_bytes)
 #     predictions = image_model.predict(input_data)
@@ -127,25 +122,3 @@ async def predict_text(text: str = Form(...)):
 #         "predicted_class": cifar_classes[pred_index],
 #         "confidence": confidence
 #     }
-
-@app.post("/predict-text")
-async def predict_text(text: str = Form(...)):
-    if text_model is None or vectorizer is None:
-        return JSONResponse({"error": "Text model not available."}, status_code=500)
-    try:
-        start = time.time()
-        text_vec = vectorizer.transform([text])
-        prediction = text_model.predict(text_vec)[0]
-        end = time.time()
-
-        with wandb.init(project=wandb_project, entity=wandb_entity, job_type="inference", reinit=True) as run:
-            run.log({
-                "endpoint": "predict-text",
-                "input_text": text,
-                "predicted_class": int(prediction),
-                "inference_time_sec": end - start
-            })
-
-        return {"input_text": text, "predicted_class": int(prediction)}
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
