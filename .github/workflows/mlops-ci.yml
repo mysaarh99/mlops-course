@@ -76,18 +76,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # =======================
-      # 9️⃣ Cache Docker layers
+     
       # =======================
-      - name: 📦 Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-
-      # =======================
-      # 🔟 إنشاء tag زمني
+      # 9 إنشاء tag زمني
       # =======================
       - name: 🏷️ Generate Docker image tag
         id: tagger
@@ -104,8 +95,9 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest
             ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:${{ steps.tagger.outputs.tag }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
 
       # =======================
       # 1️⃣2️⃣ ملخص التنفيذ
