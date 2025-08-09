@@ -165,10 +165,14 @@ stages:
   prepare_data_text:
     cmd: python scripts/prepare_data.py
     deps:
+    - path: data/dataset_small.csv
+      hash: md5
+      md5: 6ac3ff1ef821da6250d17af81d3310a2
+      size: 1065078
     - path: scripts/prepare_data.py
       hash: md5
-      md5: 47b9b3528100a880a2e503db324a1e28
-      size: 2878
+      md5: ba747dc6a5d047212fde432f8f96a8bb
+      size: 2059
     outs:
     - path: data/dataset.csv
       hash: md5

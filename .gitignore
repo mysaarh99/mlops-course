@@ -108,3 +108,4 @@ airflow/airflow.db
 
 # Clean up
 .trash/
+data/dataset.csv
