@@ -11,18 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ سحب الكود
-      - name: Checkout repository
+      # =======================
+      # 1️⃣ سحب الكود
+      # =======================
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      # ✅ إعداد Python
-      - name: Set up Python
+      # =======================
+      # 2️⃣ إعداد Python
+      # =======================
+      - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # ✅ Cache pip
-      - name: Cache pip
+      # =======================
+      # 3️⃣ Cache pip
+      # =======================
+      - name: 📦 Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
@@ -30,26 +36,49 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # ✅ تثبيت المتطلبات
-      - name: Install dependencies
+      # =======================
+      # 4️⃣ تثبيت المتطلبات
+      # =======================
+      - name: 📚 Install dependencies
         run: |
+          echo "=== Installing Python dependencies ==="
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install dvc[all] wandb mlflow
 
-      # ✅ تسجيل الدخول إلى Weights & Biases
-      - name: Login to Weights & Biases
+      # =======================
+      # 5️⃣ تسجيل الدخول إلى W&B
+      # =======================
+      - name: 🔑 Login to Weights & Biases
         run: wandb login ${{ secrets.WANDB_API_KEY }}
 
-    #  تشغيل خط DVC (توليد البيانات والتدريب) ---
-      - name: Reproduce pipeline with DVC
-        run: dvc repro
+      # =======================
+      # 6️⃣ تشغيل خط DVC
+      # =======================
+      - name: ⚙️ Reproduce pipeline with DVC
+        run: |
+          echo "=== Running DVC pipeline ==="
+          dvc repro
 
-      # ✅ إعداد Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      # =======================
+      # 7️⃣ تسجيل الدخول إلى Docker Hub
+      # =======================
+      - name: 🔑 Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # ✅ Cache Docker layers
-      - name: Cache Docker layers
+      # =======================
+      # 8️⃣ إعداد Docker Buildx
+      # =======================
+      - name: 🛠️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # =======================
+      # 9️⃣ Cache Docker layers
+      # =======================
+      - name: 📦 Cache Docker layers
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
@@ -57,20 +86,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker-
 
-      # ✅ تسجيل الدخول إلى Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-
-      # ✅ إنشاء tag زمني
-      - name: Generate Docker image tag
+      # =======================
+      # 🔟 إنشاء tag زمني
+      # =======================
+      - name: 🏷️ Generate Docker image tag
         id: tagger
         run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      # ✅ بناء ورفع صورة Docker
-      - name: Build and Push Docker Image with cache
+      # =======================
+      # 1️⃣1️⃣ بناء ورفع صورة Docker
+      # =======================
+      - name: 🐳 Build and Push Docker Image with cache
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -80,3 +106,15 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:${{ steps.tagger.outputs.tag }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+
+      # =======================
+      # 1️⃣2️⃣ ملخص التنفيذ
+      # =======================
+      - name: 📜 Summary
+        if: always()
+        run: |
+          echo "## ✅ Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images pushed:" >> $GITHUB_STEP_SUMMARY
+          echo "  * latest" >> $GITHUB_STEP_SUMMARY
+          echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+
