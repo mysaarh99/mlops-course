@@ -3,5 +3,4 @@
 ['remote "origin"']
     url = ssh://root@31.44.0.199:/root/dvc-storage
     user = root
-    keyfile = C:/Users/MysaaAlrahal/.ssh/dvc_key
     ask_password = false
