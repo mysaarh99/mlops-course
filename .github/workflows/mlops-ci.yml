@@ -111,13 +111,20 @@ jobs:
       - name: 🚀 Deploy via SSH (docker run + health check)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} <<'EOF'
+          ssh -tt \
+            -o StrictHostKeyChecking=yes \
+            -o TCPKeepAlive=yes \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=6 \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} <<'EOF'
           set -e
+
           IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
           echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
 
-          docker pull "$IMAGE"
+          docker pull -q "$IMAGE"
+
           docker stop mlops-api || true
           docker rm mlops-api || true
 
@@ -138,9 +145,10 @@ jobs:
           done
 
           echo "❌ API did not start in expected time"
-          docker logs mlops-api
+          docker logs --tail=200 mlops-api || true
           exit 1
           EOF
+
 
       # 18) ملخص التنفيذ
       - name: 📜 Summary
