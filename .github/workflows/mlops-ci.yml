@@ -11,17 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ سحب الكود
+      # 1) سحب الكود
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ إعداد Python
+      # 2) إعداد Python
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # 3️⃣ Cache pip
+      # 3) Cache pip
       - name: 📦 Cache pip
         uses: actions/cache@v3
         with:
@@ -30,63 +30,64 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # 4️⃣ تثبيت المتطلبات
+      # 4) تثبيت المتطلبات
       - name: 📚 Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      # 5️⃣ إضافة مفتاح SSH الخاص بـ DVC
-      - name: 🔑 Add SSH key for DVC
+      # 5) تحميل مفاتيح SSH (DVC + السيرفر) دفعة واحدة
+      - name: 🔑 Load SSH keys (DVC + Deploy)
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.DVC_SSH_KEY }}
+          ssh-private-key: |
+            ${{ secrets.DVC_SSH_KEY }}
+            ${{ secrets.SERVER_SSH_KEY }}
 
-      # 6️⃣ إضافة السيرفر إلى known_hosts
-      - name: 🧩 Add server to known hosts
+      # 6) إضافة السيرفر إلى known_hosts
+      - name: 🧩 Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 7️⃣ اختبار اتصال SSH مع السيرفر
+      # 7) اختبار اتصال SSH (بعد تحميل المفاتيح)
       - name: 🧪 Test SSH connection
         run: ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo ok"
 
-      # 8️⃣ إزالة أي إعداد سابق لملف مفتاح DVC
-      - name: 🚫 Unset keyfile if present
-        run: |
-          dvc config --unset "remote.origin.keyfile" || true
+      # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز)
+      - name: 🧼 Unset DVC keyfile if present
+        run: dvc config --unset "remote.origin.keyfile" || true
 
-      # 9️⃣ تسجيل الدخول إلى W&B
-      - name: 🔑 Login to W&B
+      # 9) تسجيل الدخول إلى W&B
+      - name: 🔑 Login to Weights & Biases
         run: wandb login ${{ secrets.WANDB_API_KEY }}
 
-      # 🔟 سحب البيانات من DVC
+      # 10) سحب البيانات من DVC
       - name: 📥 DVC pull data
         run: dvc pull
 
-      # 1️⃣1️⃣ إعادة إنتاج البايبلاين
+      # 11) إعادة إنتاج البايبلاين
       - name: ⚙️ Reproduce pipeline with DVC
         run: dvc repro
 
-      # 1️⃣2️⃣ تسجيل الدخول إلى Docker Hub
+      # 12) تسجيل الدخول إلى Docker Hub
       - name: 🔑 Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # 1️⃣3️⃣ إعداد Docker Buildx
+      # 13) إعداد Buildx
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 1️⃣4️⃣ إنشاء tag زمني
+      # 14) إنشاء tag زمني
       - name: 🏷️ Generate Docker image tag
         id: tagger
         run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      # 1️⃣5️⃣ بناء ورفع صورة Docker
+      # 15) بناء ورفع الصورة مع كاش GHA
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
@@ -98,47 +99,50 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 1️⃣6️⃣ نشر التطبيق وتشغيله على السيرفر + Health Check
-      - name: 🚀 Deploy to server (docker run + health check)
+      # 16) التحقق من وجود مفتاح النشر (للتشخيص)
+      - name: ✅ Check deploy key presence
+        run: |
+          if [ -z "${{ secrets.SERVER_SSH_KEY }}" ]; then
+            echo "❌ SERVER_SSH_KEY is empty or unavailable"; exit 1
+          fi
+          echo "✅ SERVER_SSH_KEY is set."
+
+      # 17) نشر التطبيق + Health Check
+      - name: 🚀 Deploy via SSH (docker run + health check)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_SSH_PORT }}
-          script: |
-            set -e
-            IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
+        run: |
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} <<'EOF'
+          set -e
+          IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
-            # تسجيل الدخول إذا الصورة خاصة
-            echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
 
-            docker pull "$IMAGE"
-            docker stop mlops-api || true
-            docker rm mlops-api || true
+          docker pull "$IMAGE"
+          docker stop mlops-api || true
+          docker rm mlops-api || true
 
-            docker run -d --name mlops-api \
-              -p 80:8000 \
-              --restart=always \
-              -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
-              "$IMAGE"
+          docker run -d --name mlops-api \
+            -p 80:8000 \
+            --restart=always \
+            -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
+            "$IMAGE"
 
-            echo "⏳ Waiting for API to start..."
-            for i in {1..10}; do
-              if curl -sSf http://localhost:80/docs > /dev/null; then
-                echo "✅ API is up and running"
-                exit 0
-              fi
-              echo "Retrying in 3s..."
-              sleep 3
-            done
+          echo "⏳ Waiting for API to start..."
+          for i in {1..10}; do
+            if curl -sSf http://localhost:80/docs > /dev/null; then
+              echo "✅ API is up and running"
+              exit 0
+            fi
+            echo "Retrying in 3s..."
+            sleep 3
+          done
 
-            echo "❌ API did not start in expected time"
-            docker logs mlops-api
-            exit 1.2
+          echo "❌ API did not start in expected time"
+          docker logs mlops-api
+          exit 1
+          EOF
 
-      # 1️⃣7️⃣ ملخص التنفيذ
+      # 18) ملخص التنفيذ
       - name: 📜 Summary
         if: always()
         run: |
@@ -146,4 +150,3 @@ jobs:
           echo "- Docker images pushed:" >> $GITHUB_STEP_SUMMARY
           echo "  * latest" >> $GITHUB_STEP_SUMMARY
           echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-
