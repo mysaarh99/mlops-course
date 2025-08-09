@@ -11,23 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # =======================
       # 1️⃣ سحب الكود
-      # =======================
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      # =======================
       # 2️⃣ إعداد Python
-      # =======================
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # =======================
       # 3️⃣ Cache pip
-      # =======================
       - name: 📦 Cache pip
         uses: actions/cache@v3
         with:
@@ -36,75 +30,64 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # =======================
       # 4️⃣ تثبيت المتطلبات
-      # =======================
       - name: 📚 Install dependencies
         run: |
-          echo "=== Installing Python dependencies ==="
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      - name: 🔑 Add SSH key
+      # 5️⃣ إضافة مفتاح SSH الخاص بـ DVC
+      - name: 🔑 Add SSH key for DVC
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DVC_SSH_KEY }}
-            
-      - name: 🧩 Known hosts
+
+      # 6️⃣ إضافة السيرفر إلى known_hosts
+      - name: 🧩 Add server to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H 31.44.0.199 >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🧪 Test SSH
-        run: ssh -o StrictHostKeyChecking=yes root@31.44.0.199 "echo ok"
-      # =======================
-      # 5️⃣ تسجيل الدخول إلى W&B
-      # =======================
-      - name: 🔑 Login to Weights & Biases
+      # 7️⃣ اختبار اتصال SSH مع السيرفر
+      - name: 🧪 Test SSH connection
+        run: ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo ok"
+
+      # 8️⃣ إزالة أي إعداد سابق لملف مفتاح DVC
+      - name: 🚫 Unset keyfile if present
+        run: |
+          dvc config --unset "remote.origin.keyfile" || true
+
+      # 9️⃣ تسجيل الدخول إلى W&B
+      - name: 🔑 Login to W&B
         run: wandb login ${{ secrets.WANDB_API_KEY }}
 
-      # =======================
-      # 6️⃣ تشغيل خط DVC
-      # =======================
-
+      # 🔟 سحب البيانات من DVC
       - name: 📥 DVC pull data
         run: dvc pull
 
-   
+      # 1️⃣1️⃣ إعادة إنتاج البايبلاين
       - name: ⚙️ Reproduce pipeline with DVC
-        run: |
-          echo "=== Running DVC pipeline ==="
-          dvc repro
+        run: dvc repro
 
-      # =======================
-      # 7️⃣ تسجيل الدخول إلى Docker Hub
-      # =======================
+      # 1️⃣2️⃣ تسجيل الدخول إلى Docker Hub
       - name: 🔑 Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # =======================
-      # 8️⃣ إعداد Docker Buildx
-      # =======================
+      # 1️⃣3️⃣ إعداد Docker Buildx
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # =======================
-     
-      # =======================
-      # 9 إنشاء tag زمني
-      # =======================
+      # 1️⃣4️⃣ إنشاء tag زمني
       - name: 🏷️ Generate Docker image tag
         id: tagger
         run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      # =======================
-      # 1️⃣1️⃣ بناء ورفع صورة Docker
-      # =======================
-      - name: 🐳 Build and Push Docker Image with cache
+      # 1️⃣5️⃣ بناء ورفع صورة Docker
+      - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -115,10 +98,47 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # 1️⃣6️⃣ نشر التطبيق وتشغيله على السيرفر + Health Check
+      - name: 🚀 Deploy to server (docker run + health check)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT }}
+          script: |
+            set -e
+            IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
-      # =======================
-      # 1️⃣2️⃣ ملخص التنفيذ
-      # =======================
+            # تسجيل الدخول إذا الصورة خاصة
+            echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+            docker pull "$IMAGE"
+            docker stop mlops-api || true
+            docker rm mlops-api || true
+
+            docker run -d --name mlops-api \
+              -p 80:8000 \
+              --restart=always \
+              -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
+              "$IMAGE"
+
+            echo "⏳ Waiting for API to start..."
+            for i in {1..10}; do
+              if curl -sSf http://localhost:80/docs > /dev/null; then
+                echo "✅ API is up and running"
+                exit 0
+              fi
+              echo "Retrying in 3s..."
+              sleep 3
+            done
+
+            echo "❌ API did not start in expected time"
+            docker logs mlops-api
+            exit 1
+
+      # 1️⃣7️⃣ ملخص التنفيذ
       - name: 📜 Summary
         if: always()
         run: |
