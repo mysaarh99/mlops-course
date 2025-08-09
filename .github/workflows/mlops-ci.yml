@@ -56,6 +56,8 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H 31.44.0.199 >> ~/.ssh/known_hosts
 
+      - name: 🧪 Test SSH
+        run: ssh -o StrictHostKeyChecking=yes root@31.44.0.199 "echo ok"
       # =======================
       # 5️⃣ تسجيل الدخول إلى W&B
       # =======================

@@ -196,7 +196,7 @@ stages:
       size: 120895
     - path: models/vectorizer.pkl
       hash: md5
-      md5: e20b7d9cb856364a509ac424e599fece
+      md5: 162f70b5fffb1fd84b1b48a88c4c469d
       size: 1295575
   predict_text:
     cmd: python scripts/predict.py
