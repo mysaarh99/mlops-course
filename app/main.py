@@ -108,17 +108,16 @@ async def predict_text(req: PredictTextRequest):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
-#  واجهة التنبؤ للصور (اتركها كما هي/معلّقة حسب حاجتك)
-# @app.post("/predict-image")
-# async def predict_image(file: UploadFile = File(...)):
-#     if image_model is None:
-#         return JSONResponse({"error": "Image model not available."}, status_code=500)
-#     image_bytes = await file.read()
-#     input_data = preprocess_image(image_bytes)
-#     predictions = image_model.predict(input_data)
-#     pred_index = np.argmax(predictions, axis=1)[0]
-#     confidence = float(np.max(predictions))
-#     return {
-#         "predicted_class": cifar_classes[pred_index],
-#         "confidence": confidence
-#     }
+@app.post("/predict-image")
+async def predict_image(file: UploadFile = File(...)):
+    if image_model is None:
+        return JSONResponse({"error": "Image model not available."}, status_code=500)
+    image_bytes = await file.read()
+    input_data = preprocess_image(image_bytes)
+    predictions = image_model.predict(input_data)
+    pred_index = np.argmax(predictions, axis=1)[0]
+    confidence = float(np.max(predictions))
+    return {
+        "predicted_class": cifar_classes[pred_index],
+        "confidence": confidence
+    }
