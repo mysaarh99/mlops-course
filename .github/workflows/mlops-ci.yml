@@ -136,7 +136,7 @@ jobs:
 
             echo "❌ API did not start in expected time"
             docker logs mlops-api
-            exit 1
+            exit 1.2
 
       # 1️⃣7️⃣ ملخص التنفيذ
       - name: 📜 Summary
