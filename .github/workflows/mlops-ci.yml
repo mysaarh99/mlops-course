@@ -37,58 +37,72 @@ jobs:
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      # 5) تحميل مفاتيح SSH (DVC + السيرفر) دفعة واحدة
+      # 5) تحميل مفاتيح SSH (DVC + Deploy) — عند الدفع فقط
       - name: 🔑 Load SSH keys (DVC + Deploy)
+        if: github.event_name == 'push'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: |
             ${{ secrets.DVC_SSH_KEY }}
             ${{ secrets.SERVER_SSH_KEY }}
 
-      # 6) إضافة السيرفر إلى known_hosts
+      # 6) إضافة السيرفر إلى known_hosts — عند الدفع فقط
       - name: 🧩 Add server to known_hosts
+        if: github.event_name == 'push'
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 7) اختبار اتصال SSH (بعد تحميل المفاتيح)
+      # 7) اختبار اتصال SSH — عند الدفع فقط
       - name: 🧪 Test SSH connection
+        if: github.event_name == 'push'
         run: ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo ok"
 
-      # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز)
+      # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز) — عند الدفع فقط
       - name: 🧼 Unset DVC keyfile if present
+        if: github.event_name == 'push'
         run: dvc config --unset "remote.origin.keyfile" || true
 
-      # 9) تسجيل الدخول إلى W&B
+      # 9) تسجيل الدخول إلى W&B — عند الدفع فقط
       - name: 🔑 Login to Weights & Biases
+        if: github.event_name == 'push'
         run: wandb login ${{ secrets.WANDB_API_KEY }}
 
-      # 10) سحب البيانات من DVC
+      # 10) سحب البيانات من DVC — عند الدفع فقط
       - name: 📥 DVC pull data
+        if: github.event_name == 'push'
         run: dvc pull
 
-      # 11) إعادة إنتاج البايبلاين
+      # 11) إعادة إنتاج البايبلاين — عند الدفع فقط
       - name: ⚙️ Reproduce pipeline with DVC
+        if: github.event_name == 'push'
         run: dvc repro
 
-      # 12) تسجيل الدخول إلى Docker Hub
+      # 12) دفع بيانات/نماذج DVC إلى الريموت — عند الدفع فقط
+      - name: 📤 DVC push data
+        if: github.event_name == 'push'
+        run: dvc push
+
+      # 13) تسجيل الدخول إلى Docker Hub — عند الدفع فقط
       - name: 🔑 Log in to Docker Hub
+        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # 13) إعداد Buildx
+      # 14) إعداد Buildx
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 14) إنشاء tag زمني
+      # 15) إنشاء tag زمني
       - name: 🏷️ Generate Docker image tag
         id: tagger
         run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      # 15) بناء ورفع الصورة مع كاش GHA
+      # 16) بناء ورفع الصورة — عند الدفع فقط
       - name: 🐳 Build and Push Docker Image
+        if: github.event_name == 'push'
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -99,15 +113,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 16) التحقق من وجود مفتاح النشر (للتشخيص)
+      # 17) التحقق من وجود مفتاح النشر — عند الدفع فقط
       - name: ✅ Check deploy key presence
+        if: github.event_name == 'push'
         run: |
           if [ -z "${{ secrets.SERVER_SSH_KEY }}" ]; then
             echo "❌ SERVER_SSH_KEY is empty or unavailable"; exit 1
           fi
           echo "✅ SERVER_SSH_KEY is set."
 
-      # 17) نشر التطبيق + Health Check
+      # 18) نشر التطبيق + Health Check — عند الدفع فقط
       - name: 🚀 Deploy via SSH (docker run + health check)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -121,6 +136,7 @@ jobs:
 
           IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
+          # تسجيل الدخول إذا الصورة خاصة (تجاهل الفشل إن كانت عامة)
           echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
 
           docker pull -q "$IMAGE"
@@ -136,7 +152,7 @@ jobs:
 
           echo "⏳ Waiting for API to start..."
           for i in {1..10}; do
-            if curl -sSf http://localhost:80/docs > /dev/null; then
+            if curl -sSf http://localhost:80/health > /dev/null; then
               echo "✅ API is up and running"
               exit 0
             fi
@@ -149,12 +165,11 @@ jobs:
           exit 1
           EOF
 
-
-      # 18) ملخص التنفيذ
+      # 19) ملخص التنفيذ
       - name: 📜 Summary
         if: always()
         run: |
           echo "## ✅ Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker images pushed:" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker image tag:" >> $GITHUB_STEP_SUMMARY
           echo "  * latest" >> $GITHUB_STEP_SUMMARY
           echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

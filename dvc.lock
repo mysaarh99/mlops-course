@@ -36,7 +36,7 @@ stages:
     outs:
     - path: models/cifar10_model_wandb.keras
       hash: md5
-      md5: 2745d6ebca5e130321978e7f7fd7d3ad
+      md5: 5a77a1758d68bdac642df219bf8fd153
       size: 2048114
   train_cifar10_mlflow:
     cmd: python scripts/train_cifar10_mlflow.py
@@ -56,7 +56,7 @@ stages:
     outs:
     - path: models/cifar10_model_mlflow.keras
       hash: md5
-      md5: 091d9bcc2ece19845b258cc8bfdb792b
+      md5: c566658ea1a144c1721f2f05c5d60f8f
       size: 2048114
   train_cifar10_wandb_visual:
     cmd: python scripts/train_cifar10_wandb_visual.py
@@ -71,12 +71,12 @@ stages:
       size: 218341263
     - path: scripts/train_cifar10_wandb_visual.py
       hash: md5
-      md5: bc5f365f9ea7111a2ffab54b204755c9
-      size: 5328
+      md5: 6a0a92cd6eed8a71ae14c0669ac6b20b
+      size: 5327
     outs:
     - path: models/cifar10_model_wandb_visual.keras
       hash: md5
-      md5: 03ad5a09966ae3212590331cbd35421a
+      md5: 66f7db3883951c7ac90af4a7785d34b4
       size: 2048114
   predict_cifar10_visual:
     cmd: python scripts/predict_cifar10_visual.py
@@ -231,7 +231,7 @@ stages:
     outs:
     - path: models/cifar10_model.keras
       hash: md5
-      md5: 2a8fb21d193ecd0b68286acad731998e
+      md5: 35ebc53ed1e88dd9fe2e4a62eceef755
       size: 2048114
   train_cifar10_visual:
     cmd: python scripts/train_cifar10_wandb_visual.py
