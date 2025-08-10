@@ -1,22 +1,14 @@
 stages:
   clean_models:
     cmd: python -c "import shutil, os; shutil.rmtree('models', ignore_errors=True); os.makedirs('models', exist_ok=True)"
-    # always_changed: true
+    always_changed: true  # حتى تعمل دائمًا
   # --- بيانات النصوص ---
   prepare_data_text:
     cmd: python scripts/prepare_data.py
     deps:
       - scripts/prepare_data.py
-      - data/dataset_small.csv   
     outs:
       - data/dataset.csv
-
-  # prepare_data_text:
-  #   cmd: python scripts/prepare_data.py
-  #   deps:
-  #     - scripts/prepare_data.py
-  #   outs:
-  #     - data/dataset.csv
 
   train_text_wandb:
     cmd: python scripts/train_logistic_wandb.py
@@ -38,8 +30,10 @@ stages:
   prepare_cifar10:
     cmd: python scripts/prepare_cifar10.py
     outs:
-      - data/cifar10/train.npz
-      - data/cifar10/test.npz
+      - data/cifar10/train.npz:
+          cache: false
+      - data/cifar10/test.npz:
+          cache: false
 
   train_cifar10_baseline:
     cmd: python scripts/train_cifar10.py
