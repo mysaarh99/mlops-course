@@ -1,109 +1,100 @@
-# ========================
-# 📦 استيراد المكتبات اللازمة
-# ========================
+# wandb_cnn.py
+# -*- coding: utf-8 -*-
+import os, time, shutil
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models
-import numpy as np
-import os
 import wandb
-import shutil
 
-# ========================
-# 🚀 بدء جلسة W&B لتتبع التجربة
-# ========================
-wandb.init(
-    project="mlops_cifar10",                 # اسم المشروع في منصة W&B
-    name="cnn_cifar10_wandb_final"           # اسم التجربة الحالية (Run)
+# ثباتية (اختياري)
+tf.random.set_seed(42)
+np.random.seed(42)
+
+# إعدادات موحّدة
+EPOCHS = 5
+BATCH_SIZE = 64
+LEARNING_RATE = 0.001
+
+# تسجيل الدخول قبل التشغيل (مرة واحدة): wandb login
+run = wandb.init(
+    project="mlops_cifar10_fair_compare",
+    name="cnn_cifar10_wandb_fair",
+    config={
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LEARNING_RATE
+    }
 )
 
-# إعداد معلمات التجربة (يمكن تعديلها لاحقًا أو استخدامها في sweeps)
-config = wandb.config
-config.epochs = 5                            # عدد التكرارات (epochs)
-config.batch_size = 64                       # حجم الدفعة (batch size)
-config.learning_rate = 0.001                 # معدل التعلم
-
-# ========================
-# 📥 تحميل بيانات CIFAR-10 المحفوظة مسبقًا
-# ========================
-# البيانات يجب أن تكون محفوظة كـ train.npz و test.npz داخل مجلد data/cifar10
+# تحميل البيانات
 train_data = np.load("data/cifar10/train.npz")
-test_data = np.load("data/cifar10/test.npz")
-
-# استخراج الصور والتسميات
+test_data  = np.load("data/cifar10/test.npz")
 x_train, y_train = train_data["x"], train_data["y"]
-x_test, y_test = test_data["x"], test_data["y"]
+x_test,  y_test  = test_data["x"],  test_data["y"]
 
-# ========================
-# 🧠 تعريف نموذج CNN باستخدام Keras
-# ========================
-model = models.Sequential([
-    layers.Input(shape=(32, 32, 3)),             # إدخال صورة بحجم 32x32x3
-    layers.Conv2D(32, (3, 3), activation='relu'),# طبقة Conv بـ 32 فلتر
-    layers.MaxPooling2D((2, 2)),                 # Max Pooling لتقليل الأبعاد
-    layers.Conv2D(64, (3, 3), activation='relu'),# طبقة Conv ثانية بـ 64 فلتر
-    layers.MaxPooling2D((2, 2)),                 # Max Pooling أخرى
-    layers.Flatten(),                            # تحويل 3D إلى 1D
-    layers.Dense(64, activation='relu'),         # طبقة مخفية Fully Connected
-    layers.Dense(10, activation='softmax')       # إخراج بـ 10 فئات (أصناف الصور)
-])
+def build_model():
+    model = models.Sequential([
+        layers.Input(shape=(32, 32, 3)),
+        layers.Conv2D(32, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        layers.Conv2D(64, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(10, activation='softmax')
+    ])
+    opt = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+    model.compile(optimizer=opt,
+                  loss="sparse_categorical_crossentropy",
+                  metrics=["accuracy"])
+    return model
 
-# ========================
-# ⚙️ تهيئة النموذج (الضياع + الأمثلية + المقاييس)
-# ========================
-optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate)
+model = build_model()
 
-model.compile(
-    optimizer=optimizer,
-    loss="sparse_categorical_crossentropy",  # خسارة التصنيف لفئات مفردة
-    metrics=["accuracy"]                     # تتبع دقة النموذج
+overall_start = time.time()
+
+t0 = time.time()
+history = model.fit(
+    x_train, y_train,
+    epochs=EPOCHS, batch_size=BATCH_SIZE,
+    validation_data=(x_test, y_test), verbose=1
 )
+train_time = time.time() - t0
 
-# ========================
-# 🏋️‍♂️ تدريب النموذج مع تسجيل الأداء في كل Epoch
-# ========================
-for epoch in range(config.epochs):
-    history = model.fit(
-        x_train, y_train,
-        epochs=1,                            # تدريب على Epoch واحد كل مرة
-        batch_size=config.batch_size,       # حجم الدفعة
-        validation_data=(x_test, y_test),   # بيانات التحقق أثناء التدريب
-        verbose=1                           # عرض تقدم التدريب
-    )
+t1 = time.time()
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=0)
+predict_time = time.time() - t1
 
-    # استخراج نتائج هذه الـ Epoch
-    train_acc = history.history["accuracy"][-1]
-    val_acc = history.history["val_accuracy"][-1]
-    train_loss = history.history["loss"][-1]
-    val_loss = history.history["val_loss"][-1]
+overall_end = time.time()
+total_runtime = overall_end - overall_start
 
-    # تسجيل النتائج في لوحة W&B
-    wandb.log({
-        "epoch": epoch + 1,
-        "train_accuracy": train_acc,
-        "val_accuracy": val_acc,
-        "train_loss": train_loss,
-        "val_loss": val_loss
-    })
+# تسجيل المقاييس في W&B
+wandb.log({
+    "train_time_sec": train_time,
+    "predict_time_sec": predict_time,
+    "total_runtime_sec": total_runtime,
+    "test_accuracy": float(test_acc),
+    "test_loss": float(test_loss)
+})
 
-# ========================
-# ✅ تقييم النموذج على مجموعة الاختبار بعد التدريب
-# ========================
-test_loss, test_acc = model.evaluate(x_test, y_test)
-wandb.log({"test_accuracy": test_acc, "test_loss": test_loss})
-
-# ========================
-# 💾 حفظ النموذج المدرب
-# ========================
+# حفظ النموذج ورفعه كـ Artifact بسيط
 os.makedirs("models", exist_ok=True)
 model_path = "models/cifar10_model_wandb.keras"
 model.save(model_path)
 
-# ========================
-# 📦 رفع النموذج إلى W&B كـ Artifact (نسخة)
-# ========================
-# نقوم بنسخ النموذج إلى مجلد W&B الحالي لتجنّب مشاكل symlink في Windows
-wandb_artifact_path = os.path.join(wandb.run.dir, "cifar10_model_wandb.keras")
-shutil.copy(model_path, wandb_artifact_path)
+artifact_path = os.path.join(wandb.run.dir, "cifar10_model_wandb.keras")
+try:
+    shutil.copy(model_path, artifact_path)
+    wandb.save(artifact_path)
+except Exception as e:
+    print(f"Artifact copy warning: {e}")
 
-# تأكيد انتهاء التدريب
-print(f"✅ Training complete (W&B). Test Accuracy: {test_acc:.4f}")
+print("✅ W&B run complete")
+print(f"Train time (s):   {train_time:.4f}")
+print(f"Predict time (s): {predict_time:.4f}")
+print(f"Total runtime (s):{total_runtime:.4f}")
+print(f"Test Accuracy:    {test_acc:.4f}")
+print(f"Test Loss:        {test_loss:.4f}")
+print(f"Model saved at:   {model_path}")
+
+wandb.finish()

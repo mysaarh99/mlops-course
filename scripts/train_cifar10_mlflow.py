@@ -1,106 +1,96 @@
+# mlflow_cnn.py
+# -*- coding: utf-8 -*-
+import os, time
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models
-import numpy as np
-import os
 import mlflow
 import mlflow.keras
 
-# 🧪 إعداد تجربة MLflow
-# سيتم إنشاء تجربة باسم "CIFAR10_CNN_MLflow" (أو استخدامها إن كانت موجودة)
-mlflow.set_experiment("CIFAR10_CNN_MLflow")
+# ثباتية (اختياري)
+tf.random.set_seed(42)
+np.random.seed(42)
 
-# ⚙️ تعريف إعدادات التدريب
-epochs = 5
-batch_size = 64
-learning_rate = 0.001
+# إعدادات موحّدة
+EPOCHS = 5
+BATCH_SIZE = 64
+LEARNING_RATE = 0.001
 
-# 📦 تحميل بيانات CIFAR-10 من ملفات محفوظة مسبقًا
-# يجب أن تكون ملفات train.npz و test.npz موجودة داخل مجلد data/cifar10
+mlflow.set_experiment("CIFAR10_CNN_MLflow_FairCompare")
+
+# ⏱️ بداية الزمن الكلي
+overall_start = time.time()
+
+# تحميل البيانات
 train_data = np.load("data/cifar10/train.npz")
-test_data = np.load("data/cifar10/test.npz")
+test_data  = np.load("data/cifar10/test.npz")
 x_train, y_train = train_data["x"], train_data["y"]
-x_test, y_test = test_data["x"], test_data["y"]
+x_test,  y_test  = test_data["x"],  test_data["y"]
 
-# 🧠 بناء نموذج CNN بسيط باستخدام Keras
-model = models.Sequential([
-    layers.Input(shape=(32, 32, 3)),                # حجم الصورة (32x32 RGB)
-    layers.Conv2D(32, (3, 3), activation='relu'),   # طبقة التفاف (Conv)
-    layers.MaxPooling2D((2, 2)),                    # طبقة تجميع (Pooling)
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.MaxPooling2D((2, 2)),
-    layers.Flatten(),                               # تحويل الأبعاد إلى خطية
-    layers.Dense(64, activation='relu'),            # طبقة مخفية Fully Connected
-    layers.Dense(10, activation='softmax')          # طبقة إخراج بـ 10 فئات
-])
+def build_model():
+    model = models.Sequential([
+        layers.Input(shape=(32, 32, 3)),
+        layers.Conv2D(32, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        layers.Conv2D(64, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(10, activation='softmax')
+    ])
+    opt = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+    model.compile(optimizer=opt,
+                  loss="sparse_categorical_crossentropy",
+                  metrics=["accuracy"])
+    return model
 
-# ✅ تجميع النموذج
-optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-model.compile(
-    optimizer=optimizer,
-    loss="sparse_categorical_crossentropy",
-    metrics=["accuracy"]
-)
+model = build_model()
 
-# 🚀 بدء تسجيل التجربة داخل MLflow
 with mlflow.start_run():
-    # 📝 تسجيل المعلمات الرئيسية للتجربة
+    # تسجيل المعلمات الأساسية فقط (لتقليل الأعباء والحفاظ على عدالة الزمن)
     mlflow.log_params({
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LEARNING_RATE
     })
 
-    # 📁 تسجيل بيانات التدريب كـ Artifact (تُربط بالتجربة)
-    mlflow.log_artifact("data/cifar10/train.npz", artifact_path="dataset")
-    mlflow.log_artifact("data/cifar10/test.npz", artifact_path="dataset")
+    # تدريب
+    t0 = time.time()
+    history = model.fit(
+        x_train, y_train,
+        epochs=EPOCHS, batch_size=BATCH_SIZE,
+        validation_data=(x_test, y_test), verbose=1
+    )
+    train_time = time.time() - t0
 
-    # 📊 إنشاء قوائم لتخزين الأداء بهدف تحليل لاحق (اختياري)
-    train_acc_list, val_acc_list = [], []
-    train_loss_list, val_loss_list = [], []
+    # تقييم
+    t1 = time.time()
+    test_loss, test_acc = model.evaluate(x_test, y_test, verbose=0)
+    predict_time = time.time() - t1
 
-    # 🔁 تدريب النموذج وتسجيل الأداء لكل Epoch
-    for epoch in range(epochs):
-        history = model.fit(
-            x_train, y_train,
-            epochs=1,
-            batch_size=batch_size,
-            validation_data=(x_test, y_test),
-            verbose=1
-        )
+    # ⏱️ نهاية الزمن الكلي
+    overall_end = time.time()
+    total_runtime = overall_end - overall_start
 
-        # استخراج القيم في نهاية الـ Epoch
-        train_acc = history.history["accuracy"][-1]
-        val_acc = history.history["val_accuracy"][-1]
-        train_loss = history.history["loss"][-1]
-        val_loss = history.history["val_loss"][-1]
-
-        # حفظ الأداء في القوائم (اختياري)
-        train_acc_list.append(train_acc)
-        val_acc_list.append(val_acc)
-        train_loss_list.append(train_loss)
-        val_loss_list.append(val_loss)
-
-        # تسجيل الأداء داخل MLflow باستخدام step
-        mlflow.log_metrics({
-            "train_accuracy": train_acc,
-            "val_accuracy": val_acc,
-            "train_loss": train_loss,
-            "val_loss": val_loss
-        }, step=epoch + 1)
-
-    # 🧪 التقييم النهائي بعد التدريب
-    test_loss, test_acc = model.evaluate(x_test, y_test)
+    # تسجيل المقاييس
     mlflow.log_metrics({
-        "test_accuracy": test_acc,
-        "test_loss": test_loss
+        "train_time_sec": train_time,
+        "predict_time_sec": predict_time,
+        "total_runtime_sec": total_runtime,
+        "test_accuracy": float(test_acc),
+        "test_loss": float(test_loss)
     })
 
-    # 💾 حفظ النموذج محليًا داخل مجلد models
+    # حفظ النموذج وأرشفته
     os.makedirs("models", exist_ok=True)
     model_path = "models/cifar10_model_mlflow.keras"
     model.save(model_path)
+    mlflow.keras.log_model(model, artifact_path="cifar10_cnn_model")
 
-    # 🗃️ رفع النموذج إلى MLflow كـ Artifact
-    mlflow.keras.log_model(model, "cifar10_cnn_model")
-
-    print(f"✅ Training complete (MLflow). Test Accuracy: {test_acc:.4f}")
+    print("✅ MLflow run complete")
+    print(f"Train time (s):    {train_time:.4f}")
+    print(f"Predict time (s):  {predict_time:.4f}")
+    print(f"Total runtime (s): {total_runtime:.4f}")
+    print(f"Test Accuracy:     {test_acc:.4f}")
+    print(f"Test Loss:         {test_loss:.4f}")
+    print(f"Model saved at:    {model_path}")

@@ -1,117 +1,165 @@
-# ========================
-# 📦 استيراد المكتبات اللازمة
-# ========================
-import os
+# -*- coding: utf-8 -*-
+# Baseline TF-IDF + LogisticRegression with W&B tracking (same as first model)
+
+import os, time, json, platform, socket, pickle
+import numpy as np
 import pandas as pd
-import joblib
-import wandb
+import matplotlib.pyplot as plt
+
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-
-# ================================
-# ⚙️ إعداد معلمات التجربة (Hyperparameters)
-# ================================
-params = {
-    "test_size": 0.2,               # نسبة البيانات المستخدمة للاختبار
-    "ngram_range": (1, 2),          # استخدام كلمات مفردة وثنائية في TF-IDF
-    "C": 1.0,                       # معلمة انتظام لنموذج Logistic Regression
-    "max_features": 5000            # الحد الأقصى لعدد الميزات النصية (كلمات) في TF-IDF
-}
-
-# ================================
-# 🧪 تهيئة جلسة تتبع في Weights & Biases (W&B)
-# ================================
-wandb.init(
-    project="mlops_text_classification",  # اسم المشروع في W&B
-    name="logistic_regression_run",       # اسم التجربة الحالية
-    config=params                          # تسجيل المعلمات مع W&B
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix, f1_score
 )
 
-# 🧩 استرجاع المعلمات من config (للتوافق مع sweeps لاحقًا)
-config = wandb.config
-ngram_range = tuple(config.ngram_range)  # تحويل ngram_range إلى tuple إذا لم يكن كذلك
+import sklearn
+import wandb
 
-# ================================
-# 📁 تحميل البيانات النصية من ملف CSV
-# ================================
-df = pd.read_csv("data/dataset.csv")     # تأكد أن الملف موجود في هذا المسار
-# df = pd.read_csv("data/dataset_small.csv")     # تأكد أن الملف موجود في هذا المسار
+import time
+overall_start = time.time()  # ⏱️ بداية الزمن الكلي
 
-df["text"] = df["text"].fillna("")       # معالجة النصوص الفارغة بسلسلة فارغة
+# ====== إعدادات مطابقة للنموذج الأول ======
+DATA_PATH = "data/dataset.csv"          # غيّرها إذا لزم
+PROJECT   = "text-baseline-wandb"       # اسم المشروع في W&B
+RUN_NAME  = "tfidf-logreg-baseline"     # اسم الـ run
+RANDOM_STATE = 42
 
-# ================================
-# 🔀 تقسيم البيانات إلى تدريب واختبار
-# ================================
+# ====== تحميل وتجهيز البيانات ======
+df = pd.read_csv(DATA_PATH)
+df["text"] = df["text"].fillna("")
+X = df["text"]
+y = df["label"]
+
 X_train, X_test, y_train, y_test = train_test_split(
-    df["text"], df["label"], test_size=config.test_size, random_state=42
+    X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
 )
 
-# ================================
-# 🔤 تحويل النصوص إلى ميزات رقمية باستخدام TF-IDF
-# ================================
-vectorizer = TfidfVectorizer(
-    ngram_range=ngram_range,             # مدى تركيب الجمل (1, 2) = unigram + bigram
-    stop_words="english",                # إزالة الكلمات الشائعة مثل "the", "and"
-    max_features=config.max_features     # تحديد عدد الميزات الأكثر شيوعًا
+# ====== نفس النموذج تمامًا ======
+model = make_pipeline(
+    TfidfVectorizer(),                 # الإعدادات الافتراضية (unigram)
+    LogisticRegression(max_iter=200)   # نفس max_iter
 )
 
-# تدريب الناقل على بيانات التدريب وتحويلها
-X_train_tfidf = vectorizer.fit_transform(X_train)
-# تحويل بيانات الاختبار بنفس ناقل الميزات المدرب
-X_test_tfidf = vectorizer.transform(X_test)
+# ====== بدء جلسة W&B وتسجيل الإعدادات ======
+wandb.init(
+    project=PROJECT,
+    name=RUN_NAME,
+    config={
+        "vectorizer": "TfidfVectorizer(defaults)",
+        "classifier": "LogisticRegression",
+        "max_iter": 200,
+        "random_state": RANDOM_STATE,
+        "dataset": os.path.basename(DATA_PATH),
+        "sklearn_version": sklearn.__version__,
+        "python_version": platform.python_version(),
+        "host": socket.gethostname(),
+    },
+)
 
-# ================================
-# 🧠 تدريب نموذج Logistic Regression
-# ================================
-model = LogisticRegression(C=config.C, max_iter=1000)
-model.fit(X_train_tfidf, y_train)   # تدريب النموذج على بيانات TF-IDF
+# ====== تدريب وقياس الوقت ======
+t0 = time.time()
+model.fit(X_train, y_train)
+train_time = time.time() - t0
 
-# ================================
-# 🧮 التنبؤ على بيانات الاختبار وتقييم الأداء
-# ================================
-y_pred = model.predict(X_test_tfidf)
-acc = accuracy_score(y_test, y_pred)     # حساب الدقة على مجموعة الاختبار
+# ====== تنبؤ وقياس الوقت ======
+t1 = time.time()
+y_pred = model.predict(X_test)
+predict_time = time.time() - t1
 
-# تسجيل نتيجة الدقة في W&B
-wandb.log({"accuracy": acc})
+# ====== المقاييس ======
+acc = accuracy_score(y_test, y_pred)
+f1_macro = f1_score(y_test, y_pred, average="macro")
+f1_weighted = f1_score(y_test, y_pred, average="weighted")
+report_text = classification_report(y_test, y_pred, digits=4)
+cm = confusion_matrix(y_test, y_pred)
+classes = np.unique(y)
 
-# طباعة المعلمات والدقة في الطرفية
-print(f"✅ Params: {dict(config)}")
-print(f"✅ Accuracy: {acc:.4f}")
+print(f"start runtime (s): {overall_start:.4f}")
 
-# ================================
-# 💾 حفظ النموذج وناقل الميزات (TF-IDF)
-# ================================
-# التأكد من أن vectorizer قد تم تدريبه (fit) قبل الحفظ
-assert hasattr(vectorizer, "idf_"), "❌ Vectorizer غير مدرب!"
+# ====== تسجيل المقاييس إلى W&B ======
+wandb.log({
+    "accuracy": acc,
+    "f1_macro": f1_macro,
+    "f1_weighted": f1_weighted,
+    "train_time_sec": train_time,
+    "predict_time_sec": predict_time,
+    "train_size": int(len(X_train)),
+    "test_size": int(len(X_test)),
+    "n_classes": int(len(classes)),
+})
 
-# إنشاء مجلد لحفظ النماذج إن لم يكن موجودًا
-os.makedirs("models", exist_ok=True)
+# (اختياري) رفع مصفوفة الالتباس كـ صورة + مخطط تفاعلي
+# 1) صورة ثابتة
+os.makedirs("artifacts", exist_ok=True)
+plt.figure(figsize=(6,5))
+plt.imshow(cm, interpolation="nearest")
+plt.title("Confusion Matrix - Baseline (TF-IDF + LR)")
+plt.colorbar()
+ticks = np.arange(len(classes))
+plt.xticks(ticks, classes, rotation=45)
+plt.yticks(ticks, classes)
+plt.xlabel("Predicted"); plt.ylabel("True")
+plt.tight_layout()
+cm_path = "artifacts/confusion_matrix.png"
+plt.savefig(cm_path, dpi=150)
+plt.close()
+wandb.log({"confusion_matrix_img": wandb.Image(cm_path)})
 
-# مسارات الملفات لحفظ النموذج والناقل
-model_path = f"models/logistic_model_C{config.C}.pkl"
-best_model_path = "models/logistic_model_best.pkl"
-vectorizer_path = "models/vectorizer.pkl"
+# 2) مخطط تفاعلي داخل W&B
+# ====== مصفوفة الالتباس ======
+# مهم: نحول y_test و y_pred لقوائم عشان ما يصير KeyError
+wandb.log({
+    "confusion_matrix": wandb.plot.confusion_matrix(
+        probs=None,
+        y_true=y_test.tolist(),
+        preds=y_pred.tolist(),
+        class_names=[str(c) for c in classes]
+    )
+})
 
-# حفظ النموذج المدرب وناقل الميزات باستخدام joblib
-joblib.dump(model, model_path)
-joblib.dump(model, best_model_path)         # نسخة موحدة للنشر أو التقييم
-joblib.dump(vectorizer, vectorizer_path)
+# ====== حفظ تقرير التصنيف ======
+report_path = "artifacts/classification_report.txt"
+with open(report_path, "w", encoding="utf-8") as f:
+    f.write(report_text)
 
-# ================================
-# 📦 تسجيل النموذج كـ Artifact في W&B
-# ================================
-artifact = wandb.Artifact("logistic_regression_model", type="model")
+report_artifact = wandb.Artifact(
+    name="classification_report",
+    type="report",
+    description="Classification report for baseline model"
+)
+
+report_artifact.add_file(report_path)
+wandb.log_artifact(report_artifact)
+
+# ====== حفظ النموذج ======
+model_path = "artifacts/baseline_model.pkl"
+with open(model_path, "wb") as f:
+    pickle.dump(model, f)
+artifact = wandb.Artifact(
+    name="baseline_tfidf_logreg",
+    type="model",
+    description="Baseline TF-IDF + LogisticRegression (max_iter=200)",
+    metadata={"framework": "sklearn", "max_iter": 200}
+)
 artifact.add_file(model_path)
-artifact.add_file(best_model_path)
-artifact.add_file(vectorizer_path)
-
-# تسجيل الملفات وربطها بالتجربة
-# wandb.save(best_model_path)
 wandb.log_artifact(artifact)
 
-# تأكيد الحفظ
-print(f"✅ Model saved at {best_model_path}")
-print(f"✅ Vectorizer saved at {vectorizer_path}")
+# ====== حساب الزمن الكلي ======
+overall_end = time.time()
+total_runtime = overall_end - overall_start
+print(f"Total runtime (s): {total_runtime:.4f}")
+
+# ====== تسجيل المقاييس النهائية في summary ======
+wandb.summary["accuracy"] = float(acc)
+wandb.summary["f1_macro"] = float(f1_macro)
+wandb.summary["f1_weighted"] = float(f1_weighted)
+wandb.summary["train_time_sec"] = float(train_time)
+wandb.summary["predict_time_sec"] = float(predict_time)
+wandb.summary["train_size"] = int(len(X_train))
+wandb.summary["test_size"] = int(len(X_test))
+wandb.summary["n_classes"] = int(len(classes))
+wandb.summary["total_runtime_sec"] = float(total_runtime)
+
+wandb.finish()

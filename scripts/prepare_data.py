@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import pandas as pd
+from sklearn.datasets import fetch_20newsgroups
 
 SMALL_PATH = Path("data/dataset_small.csv")
 OUT_PATH = Path("data/dataset.csv")
@@ -20,7 +21,6 @@ def save_dataset():
         # محليًا: أنشئ الملف من المصدر
         print("⚠️ dataset_small.csv غير موجود. يتم إنشاؤه محليًا من 20 Newsgroups...")
         # نجلب عند الحاجة فقط لتجنّب 403 في CI
-        from sklearn.datasets import fetch_20newsgroups
 
         # تحديد الفئات
         categories = ['alt.atheism', 'sci.space', 'rec.sport.hockey']

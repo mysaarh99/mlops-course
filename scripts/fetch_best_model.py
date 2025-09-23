@@ -6,7 +6,7 @@ import os
 
 # إعداد متغيرات W&B (مشروع، كيان، Sweep ID)
 PROJECT = "mlops_text_classification"  # اسم مشروع W&B
-ENTITY = "mysaarh99-academic-journals"  # اسم الحساب أو الفريق في W&B
+ENTITY = "mysaakhalid98-mlops"  # اسم الحساب أو الفريق في W&B
 SWEEP_ID = "t39ykh89"  # معرف الـ Sweep (تجارب متعددة ضمن نفس الإعدادات)
 
 def download_best_model():

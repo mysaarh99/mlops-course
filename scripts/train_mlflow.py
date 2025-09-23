@@ -1,79 +1,152 @@
-# استيراد المكتبات الضرورية
-import pandas as pd  # لمعالجة البيانات
-from sklearn.model_selection import train_test_split, GridSearchCV  # لتقسيم البيانات وضبط المعلمات
-from sklearn.feature_extraction.text import TfidfVectorizer  # لتحويل النص إلى متجهات رقمية
-from sklearn.linear_model import LogisticRegression  # خوارزمية الانحدار اللوجستي
-from sklearn.pipeline import Pipeline  # لإنشاء سلسلة من المعالجات
-from sklearn.metrics import accuracy_score  # لحساب الدقة
+# -*- coding: utf-8 -*-
+import os, time, json, platform, socket
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# مكتبات MLOps للتتبع والتسجيل
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix, f1_score
+)
+import sklearn
+
 import mlflow
 import mlflow.sklearn
-import os  # للتعامل مع الملفات والمجلدات
 
-# إعداد تجربة باسم "Advanced_Text_Classification"
-mlflow.set_experiment("Advanced_Text_Classification")
+overall_start = time.time()
+# ======= إعدادات مطابقة للنموذج الأول =======
+DATA_PATH = "data/dataset.csv"        # نفس الملف المستخدم أولاً
+EXPERIMENT_NAME = "Text_MLflow_Baseline_Same_As_First"
+RANDOM_STATE = 42
 
-# تحميل مجموعة البيانات من ملف CSV
-# df = pd.read_csv("data/dataset.csv")
-df = pd.read_csv("data/dataset_small.csv")
+# (اختياري) لو عندك خادم MLflow:
+# mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
+mlflow.set_experiment(EXPERIMENT_NAME)
 
-# معالجة القيم المفقودة في العمود النصي "text"
+# ======= تحميل وتجهيز البيانات (نفس الخطوات) =======
+df = pd.read_csv(DATA_PATH)
 df["text"] = df["text"].fillna("")
+X = df["text"]
+y = df["label"]
 
-# تقسيم البيانات إلى مجموعة تدريب واختبار
 X_train, X_test, y_train, y_test = train_test_split(
-    df["text"], df["label"], test_size=0.2, random_state=42
+    X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
 )
 
-# تعريف الـ Pipeline الذي يتكون من:
-# 1. تحويل النصوص إلى متجهات باستخدام TF-IDF
-# 2. تصنيف باستخدام Logistic Regression
-pipeline = Pipeline([
-    ('tfidf', TfidfVectorizer(stop_words='english', max_features=10000)),
-    ('clf', LogisticRegression(max_iter=1000))
-])
+# ======= نفس النموذج تمامًا =======
+model = make_pipeline(
+    TfidfVectorizer(),                 # الإعدادات الافتراضية (unigram)
+    LogisticRegression(max_iter=200)   # نفس max_iter
+)
 
-# إعداد شبكة المعلمات لتجربتها باستخدام Grid Search
-param_grid = {
-    'clf__C': [0.1, 1, 10],  # معامل الانتظام Regularization strength
-    'clf__penalty': ['l2'],  # نوع العقوبة
-    'clf__solver': ['lbfgs']  # الخوارزمية المستخدمة في التدريب
-}
+# ======= إضافة قياس الزمن الكلي =======
 
-# تنفيذ البحث الشبكي مع 3-تقاطع (3-fold cross-validation)
-grid = GridSearchCV(pipeline, param_grid, cv=3, n_jobs=-1, verbose=1)
 
-# بدء جلسة تسجيل باستخدام MLflow
+# ======= تشغيل جلسة MLflow وتسجيل كل شيء =======
 with mlflow.start_run() as run:
-    # تدريب النموذج باستخدام GridSearchCV
-    grid.fit(X_train, y_train)
-    
-    # التنبؤ على بيانات الاختبار
-    y_pred = grid.predict(X_test)
-    
-    # حساب دقة النموذج
+    # لا نستخدم autolog لتجنّب أي اختلافات تلقائية
+    # mlflow.sklearn.autolog(log_models=False)
+
+    # قياس وقت التدريب (fit واحد فقط)
+    t0 = time.time()
+    model.fit(X_train, y_train)
+    train_time = time.time() - t0
+
+    # التنبؤ وقياس الوقت
+    t1 = time.time()
+    y_pred = model.predict(X_test)
+    predict_time = time.time() - t1
+
+    # المقاييس (نفس ما كنت تحسبه وأكثر قليلًا)
     acc = accuracy_score(y_test, y_pred)
+    f1_macro = f1_score(y_test, y_pred, average="macro")
+    f1_weighted = f1_score(y_test, y_pred, average="weighted")
+    report_text = classification_report(y_test, y_pred)
+    cm = confusion_matrix(y_test, y_pred)
 
-    # تسجيل أفضل المعلمات التي تم العثور عليها
-    mlflow.log_param("best_C", grid.best_params_['clf__C'])
-    mlflow.log_param("penalty", grid.best_params_['clf__penalty'])
+    # تسجيل المعلمات الأساسية فقط (مطابقة للنموذج الأول)
+    tfidf = model.named_steps["tfidfvectorizer"]
+    clf = model.named_steps["logisticregression"]
+    mlflow.log_params({
+        "vectorizer": "TfidfVectorizer(defaults)",
+        "clf": "LogisticRegression",
+        "max_iter": clf.max_iter,
+        "random_state": RANDOM_STATE,
+        "dataset": os.path.basename(DATA_PATH),
+        "sklearn_version": sklearn.__version__,
+        "python_version": platform.python_version(),
+        "host": socket.gethostname(),
+    })
 
-    # تسجيل مقياس الأداء (الدقة)
-    mlflow.log_metric("accuracy", acc)
+    # تسجيل المقاييس
+    mlflow.log_metrics({
+        "accuracy": acc,
+        "f1_macro": f1_macro,
+        "f1_weighted": f1_weighted,
+        "train_time_sec": train_time,
+        "predict_time_sec": predict_time,
+        "train_size": int(len(X_train)),
+        "test_size": int(len(X_test)),
+        "n_classes": int(len(np.unique(y))),
+    })
 
-    # إنشاء مجلد لحفظ النموذج إن لم يكن موجودًا
-    os.makedirs("models", exist_ok=True)
+    # حفظ الأرتيفاكتس (تقرير + مصفوفة الالتباس + ملخّص)
+    os.makedirs("artifacts", exist_ok=True)
 
-    # تسجيل النموذج المدرب داخل MLflow
-    mlflow.sklearn.log_model(grid.best_estimator_, "best_model")
+    report_path = "artifacts/classification_report.txt"
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report_text)
+    mlflow.log_artifact(report_path)
 
-    # طباعة معلومات للتتبع اليدوي
-    print(f"Best params: {grid.best_params_}")
-    print(f"Test Accuracy: {acc:.4f}")
-    print(f"Run ID: {run.info.run_id}")
-    print(f"URL: http://127.0.0.1:5000/#/experiments/{run.info.experiment_id}/runs/{run.info.run_id}")
+    plt.figure(figsize=(6,5))
+    plt.imshow(cm, interpolation="nearest")
+    plt.title("Confusion Matrix - Baseline (TF-IDF + LR)")
+    plt.colorbar()
+    ticks = np.arange(cm.shape[0])
+    plt.xticks(ticks); plt.yticks(ticks)
+    plt.xlabel("Predicted"); plt.ylabel("True")
+    plt.tight_layout()
+    cm_path = "artifacts/confusion_matrix.png"
+    plt.savefig(cm_path, dpi=150)
+    plt.close()
+    mlflow.log_artifact(cm_path)
 
-# إنهاء جلسة MLflow (اختياري في هذا السياق، لأن with block ينفذها تلقائيًا)
-mlflow.end_run()
+    summary = {
+        "accuracy": acc,
+        "f1_macro": f1_macro,
+        "f1_weighted": f1_weighted,
+        "train_time_sec": train_time,
+        "predict_time_sec": predict_time,
+        "train_size": int(len(X_train)),
+        "test_size": int(len(X_test))
+    }
+    summary_path = "artifacts/summary.json"
+    with open(summary_path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+    mlflow.log_artifact(summary_path)
+
+    # حفظ النموذج نفسه كأرتيفاكت
+    mlflow.sklearn.log_model(
+        sk_model=model,
+        artifact_path="baseline_model"   # لا Model Registry هنا؛ مجرد أرتيفاكت
+    )
+
+    # ======= حساب الزمن الكلي =======
+    overall_end = time.time()
+    total_runtime = overall_end - overall_start
+    mlflow.log_metric("total_runtime_sec", total_runtime)
+
+    # مخرجات مفيدة في الطرفية
+    print("========== RUN INFO ==========")
+    print(f"Experiment : {EXPERIMENT_NAME}")
+    print(f"Run ID     : {run.info.run_id}")
+    print(f"Accuracy   : {acc:.4f}")
+    print(f"F1-macro   : {f1_macro:.4f}")
+    print(f"Train time : {train_time:.4f} sec")
+    print(f"Predict    : {predict_time:.4f} sec")
+    print(f"Total run  : {total_runtime:.4f} sec")
+    print("==============================")
