@@ -181,3 +181,5 @@ jobs:
           echo "- Docker image tag:" >> $GITHUB_STEP_SUMMARY
           echo "  * latest" >> $GITHUB_STEP_SUMMARY
           echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+
+          
