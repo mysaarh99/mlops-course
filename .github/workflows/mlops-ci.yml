@@ -10,7 +10,7 @@ jobs:
   build-train-deploy:
     runs-on: ubuntu-latest
 
-    # ⬇️ متغيرات البيئة المتاحة لخطوات التدريب (DVC) والنشر
+    # ⬇ متغيرات البيئة المتاحة لخطوات التدريب (DVC) والنشر
     env:
       WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
       WANDB_PROJECT: mlops-monitoring
@@ -182,4 +182,3 @@ jobs:
           echo "  * latest" >> $GITHUB_STEP_SUMMARY
           echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
 
-          
