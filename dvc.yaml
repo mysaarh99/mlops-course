@@ -1,8 +1,8 @@
 stages:
   clean_models:
     cmd: python -c "import shutil, os; shutil.rmtree('models', ignore_errors=True); os.makedirs('models', exist_ok=True)"
-    always_changed: true  # حتى تعمل دائمًا
-  # --- بيانات النصوص ---
+    always_changed: true
+
   prepare_data_text:
     cmd: python scripts/prepare_data.py
     deps:
@@ -10,31 +10,57 @@ stages:
     outs:
       - data/dataset.csv
 
+
+  train_text_baseline:
+    cmd: python scripts/train_text_baseline.py
+    deps:
+      - data/dataset.csv
+      - scripts/train_text_baseline.py
+    outs:
+      - models/text_baseline_model.pkl
+      - models/text_baseline_vectorizer.pkl
+
+
+  train_text_mlflow:
+    cmd: python scripts/train_mlflow.py
+    deps:
+      - data/dataset.csv
+      - scripts/train_mlflow.py
+    outs:
+      - models/text_mlflow_model.pkl
+      - models/text_mlflow_vectorizer.pkl
+
+
   train_text_wandb:
     cmd: python scripts/train_logistic_wandb.py
     deps:
       - data/dataset.csv
       - scripts/train_logistic_wandb.py
     outs:
-      - models/logistic_model_best.pkl
-      - models/vectorizer.pkl
+      - models/text_wandb_model.pkl
+      - models/text_wandb_vectorizer.pkl
 
-  predict_text:
-    cmd: python scripts/predict.py
+  predict_text_any:
+    cmd: python scripts/predict_text_any.py --input data/predict_texts.txt --out predictions/text_any_output.csv --meta predictions/text_any_meta.json
     deps:
-      - models/logistic_model_best.pkl
-      - models/vectorizer.pkl
-      - scripts/predict.py
+      - scripts/predict_text_any.py
+      - models/           # يعتمد على كل محتوى مجلد النماذج
+    outs:
+      - predictions/text_any_output.csv
+    metrics:
+      - predictions/text_any_meta.json
 
-  # --- بيانات CIFAR-10 ---
   prepare_cifar10:
     cmd: python scripts/prepare_cifar10.py
+    deps:
+      - scripts/prepare_cifar10.py
     outs:
       - data/cifar10/train.npz:
           cache: false
       - data/cifar10/test.npz:
           cache: false
 
+  # تدريب الصور - بدون أداة تتبّع (Baseline)
   train_cifar10_baseline:
     cmd: python scripts/train_cifar10.py
     deps:
@@ -42,17 +68,9 @@ stages:
       - data/cifar10/test.npz
       - scripts/train_cifar10.py
     outs:
-      - models/cifar10_model.keras
+      - models/cifar10_model_baseline.keras
 
-  train_cifar10_wandb:
-    cmd: python scripts/train_cifar10_wandb.py
-    deps:
-      - data/cifar10/train.npz
-      - data/cifar10/test.npz
-      - scripts/train_cifar10_wandb.py
-    outs:
-      - models/cifar10_model_wandb.keras
-
+ 
   train_cifar10_mlflow:
     cmd: python scripts/train_cifar10_mlflow.py
     deps:
@@ -62,34 +80,22 @@ stages:
     outs:
       - models/cifar10_model_mlflow.keras
 
-  train_cifar10_wandb_visual:
-    cmd: python scripts/train_cifar10_wandb_visual.py
+  train_cifar10_wandb:
+    cmd: python scripts/train_cifar10_wandb.py
     deps:
-      - scripts/train_cifar10_wandb_visual.py
       - data/cifar10/train.npz
       - data/cifar10/test.npz
+      - scripts/train_cifar10_wandb.py
     outs:
-      - models/cifar10_model_wandb_visual.keras
-
-  # --- التنبؤ بعد التدريب (صور) ---
-  predict_cifar10_baseline:
-    cmd: python scripts/predict_cifar10.py
+      - models/cifar10_model_wandb.keras
+      
+  predict_cifar10_any:
+    cmd: python scripts/predict_cifar10_any.py --in data/cifar10/test.npz --out predictions/cifar10_any_preds.npy --meta predictions/cifar10_any_meta.json --sample 0
     deps:
-      - models/cifar10_model.keras
-      - scripts/predict_cifar10.py
-
-  predict_cifar10_visual:
-    cmd: python scripts/predict_cifar10_visual.py
-    deps:
-      - models/cifar10_model_wandb_visual.keras
+      - scripts/predict_cifar10_any.py
       - data/cifar10/test.npz
-      - scripts/predict_cifar10_visual.py
-
-# graph TD
-#   A[prepare] --> B[train] --> C[predict]
-#   D[prepare_cifar10] --> E[train_cifar10]
-#   D --> F[train_cifar10_wandb]
-#   D --> G[train_cifar10_mlflow]
-#   D --> H[train_cifar10_wandb_visual] --> I[predict_cifar10_visual]
-#   E --> J[predict_cifar10]
-    
+      - models/
+    outs:
+      - predictions/cifar10_any_preds.npy
+    metrics:
+      - predictions/cifar10_any_meta.json

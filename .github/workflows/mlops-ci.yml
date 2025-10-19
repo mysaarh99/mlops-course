@@ -10,6 +10,12 @@ jobs:
   build-train-deploy:
     runs-on: ubuntu-latest
 
+    # ⬇️ متغيرات البيئة المتاحة لخطوات التدريب (DVC) والنشر
+    env:
+      WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+      WANDB_PROJECT: mlops-monitoring
+      # WANDB_ENTITY: your-entity-if-used   # اتركه غير معرّف إن لم تستخدم Teams
+
     steps:
       # 1) سحب الكود
       - name: 📥 Checkout repository
@@ -17,7 +23,7 @@ jobs:
 
       # 2) إعداد Python
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -63,10 +69,8 @@ jobs:
         if: github.event_name == 'push'
         run: dvc config --unset "remote.origin.keyfile" || true
 
-      # 9) تسجيل الدخول إلى W&B — عند الدفع فقط
-      - name: 🔑 Login to Weights & Biases
-        if: github.event_name == 'push'
-        run: wandb login ${{ secrets.WANDB_API_KEY }}
+      # (تم حذف خطوة wandb login؛ نعتمد على env: WANDB_API_KEY)
+      # 9) ← محذوفة
 
       # 10) سحب البيانات من DVC — عند الدفع فقط
       - name: 📥 DVC pull data
@@ -144,10 +148,14 @@ jobs:
           docker stop mlops-api || true
           docker rm mlops-api || true
 
+          # تمرير متغيرات البيئة الضرورية للتوافق مع API وW&B
           docker run -d --name mlops-api \
             -p 80:8000 \
             --restart=always \
-            -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
+            -e WANDB_API_KEY='${{ secrets.WANDB_API_KEY }}' \
+            -e WANDB_PROJECT='mlops-monitoring' \
+            -e TEXT_MODEL_NAME='baseline' \
+            -e IMG_MODEL_NAME='baseline' \
             "$IMAGE"
 
           echo "⏳ Waiting for API to start..."

@@ -9,6 +9,11 @@ stages:
       size: 1065078
   prepare_cifar10:
     cmd: python scripts/prepare_cifar10.py
+    deps:
+    - path: scripts/prepare_cifar10.py
+      hash: md5
+      md5: ba9def95af1c4f670b18840becc9fb5a
+      size: 1805
     outs:
     - path: data/cifar10/test.npz
       hash: md5
@@ -31,12 +36,12 @@ stages:
       size: 218341263
     - path: scripts/train_cifar10_wandb.py
       hash: md5
-      md5: ca5b6146d4d135c75ee1c0ccb02c7152
-      size: 4734
+      md5: a278f4c4476ff91f03d9a13bad3b9593
+      size: 2907
     outs:
     - path: models/cifar10_model_wandb.keras
       hash: md5
-      md5: 5a77a1758d68bdac642df219bf8fd153
+      md5: 9d7f17830c7ba5ea881dea252dd3995a
       size: 2048114
   train_cifar10_mlflow:
     cmd: python scripts/train_cifar10_mlflow.py
@@ -51,12 +56,12 @@ stages:
       size: 218341263
     - path: scripts/train_cifar10_mlflow.py
       hash: md5
-      md5: 1a113972a808ca7d7b7a6cbac717f8a3
-      size: 4236
+      md5: f1fc53f761f73f1f213d71c14468f18b
+      size: 3039
     outs:
     - path: models/cifar10_model_mlflow.keras
       hash: md5
-      md5: c566658ea1a144c1721f2f05c5d60f8f
+      md5: 0ce8f05a0e4a26520dae21ab88f0bce2
       size: 2048114
   train_cifar10_wandb_visual:
     cmd: python scripts/train_cifar10_wandb_visual.py
@@ -165,14 +170,10 @@ stages:
   prepare_data_text:
     cmd: python scripts/prepare_data.py
     deps:
-    - path: data/dataset_small.csv
-      hash: md5
-      md5: 6ac3ff1ef821da6250d17af81d3310a2
-      size: 1065078
     - path: scripts/prepare_data.py
       hash: md5
-      md5: ba747dc6a5d047212fde432f8f96a8bb
-      size: 2059
+      md5: ad6db1ea370b9fcee3801c365897152f
+      size: 2051
     outs:
     - path: data/dataset.csv
       hash: md5
@@ -187,17 +188,17 @@ stages:
       size: 1065078
     - path: scripts/train_logistic_wandb.py
       hash: md5
-      md5: 84b901e75ad3c5402ecd12048de9eb12
-      size: 5330
+      md5: 0e0097b73b5c4b7d4f141657bc256e88
+      size: 5781
     outs:
-    - path: models/logistic_model_best.pkl
+    - path: models/text_wandb_model.pkl
       hash: md5
-      md5: 850ce8780d340bbec646cfce071e693c
-      size: 120895
-    - path: models/vectorizer.pkl
+      md5: 864b845eca180a396b474913b914a52c
+      size: 373471
+    - path: models/text_wandb_vectorizer.pkl
       hash: md5
-      md5: 162f70b5fffb1fd84b1b48a88c4c469d
-      size: 1295575
+      md5: d6f4089c9eb34fba08f8e28d40e2eac3
+      size: 447970
   predict_text:
     cmd: python scripts/predict.py
     deps:
@@ -226,12 +227,12 @@ stages:
       size: 218341263
     - path: scripts/train_cifar10.py
       hash: md5
-      md5: 5d03c3676dd66608579d58c601a9eeb2
-      size: 1562
+      md5: 18bb9602d9b79c7db701df49b56d398f
+      size: 2083
     outs:
-    - path: models/cifar10_model.keras
+    - path: models/cifar10_model_baseline.keras
       hash: md5
-      md5: 35ebc53ed1e88dd9fe2e4a62eceef755
+      md5: b60f0688dce07f22645d166a34c931c5
       size: 2048114
   train_cifar10_visual:
     cmd: python scripts/train_cifar10_wandb_visual.py
@@ -264,3 +265,91 @@ stages:
       hash: md5
       md5: 1d54b441658a247c566a0ee8ffdf951c
       size: 1514
+  train_text_baseline:
+    cmd: python scripts/train_text_baseline.py
+    deps:
+    - path: data/dataset.csv
+      hash: md5
+      md5: 6ac3ff1ef821da6250d17af81d3310a2
+      size: 1065078
+    - path: scripts/train_text_baseline.py
+      hash: md5
+      md5: 64bcd2f2b0d95453432ade43e35fcf74
+      size: 1937
+    outs:
+    - path: models/text_baseline_model.pkl
+      hash: md5
+      md5: 8ff286bb532de629e856439145f55519
+      size: 373471
+    - path: models/text_baseline_vectorizer.pkl
+      hash: md5
+      md5: 409ee3621d58dc60254cbc24a41f157d
+      size: 447970
+  train_text_mlflow:
+    cmd: python scripts/train_mlflow.py
+    deps:
+    - path: data/dataset.csv
+      hash: md5
+      md5: 6ac3ff1ef821da6250d17af81d3310a2
+      size: 1065078
+    - path: scripts/train_mlflow.py
+      hash: md5
+      md5: 70b71886b5c8084d5af18a67b352e822
+      size: 4458
+    outs:
+    - path: models/text_mlflow_model.pkl
+      hash: md5
+      md5: 864b845eca180a396b474913b914a52c
+      size: 373471
+    - path: models/text_mlflow_vectorizer.pkl
+      hash: md5
+      md5: da70ae8899ed3d61b0200801df5a2238
+      size: 447970
+  predict_text_any:
+    cmd: python scripts/predict_text_any.py --input data/predict_texts.txt --out predictions/text_any_output.csv
+      --meta predictions/text_any_meta.json
+    deps:
+    - path: models/
+      hash: md5
+      md5: b786b737a67e9425e2a000e085272cfb.dir
+      size: 8608914
+      nfiles: 10
+    - path: scripts/predict_text_any.py
+      hash: md5
+      md5: 30f2bbd4dad3b8014988f3672ad45af4
+      size: 3454
+    outs:
+    - path: predictions/text_any_meta.json
+      hash: md5
+      md5: 5e4fb006b60fb85d456638ae5ca66d08
+      size: 299
+    - path: predictions/text_any_output.csv
+      hash: md5
+      md5: 2d437f9cf752762f20d543b9490f192d
+      size: 245
+  predict_cifar10_any:
+    cmd: python scripts/predict_cifar10_any.py --in data/cifar10/test.npz --out predictions/cifar10_any_preds.npy
+      --meta predictions/cifar10_any_meta.json --sample 0
+    deps:
+    - path: data/cifar10/test.npz
+      hash: md5
+      md5: 49888eb0d576940b32e0a87214d6d1a0
+      size: 43626377
+    - path: models/
+      hash: md5
+      md5: b786b737a67e9425e2a000e085272cfb.dir
+      size: 8608914
+      nfiles: 10
+    - path: scripts/predict_cifar10_any.py
+      hash: md5
+      md5: b687fc94a9101a870cd03856b0cccfd6
+      size: 3141
+    outs:
+    - path: predictions/cifar10_any_meta.json
+      hash: md5
+      md5: 4f766d0ff51f10659d3bf0dfd6994e5b
+      size: 313
+    - path: predictions/cifar10_any_preds.npy
+      hash: md5
+      md5: 127df8eaff0894dda50d046e406301c6
+      size: 80128
