@@ -44,7 +44,7 @@ stages:
     cmd: python scripts/predict_text_any.py --input data/predict_texts.txt --out predictions/text_any_output.csv --meta predictions/text_any_meta.json
     deps:
       - scripts/predict_text_any.py
-      - models/           # يعتمد على كل محتوى مجلد النماذج
+      - models/       
     outs:
       - predictions/text_any_output.csv
     metrics:
