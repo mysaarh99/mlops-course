@@ -21,6 +21,8 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
+        
+
       # 2) إعداد Python
       - name: 🐍 Set up Python
         uses: actions/setup-python@v5
@@ -43,8 +45,7 @@ jobs:
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      # 5) تحميل مفاتيح SSH (DVC + Deploy) — عند الدفع فقط
-      - name: 🔑 Load SSH keys (DVC + Deploy)
+      - name: 🔑 Start ssh-agent and add key
         if: github.event_name == 'push'
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -52,17 +53,31 @@ jobs:
             ${{ secrets.DVC_SSH_KEY }}
             ${{ secrets.SERVER_SSH_KEY }}
 
-      # 6) إضافة السيرفر إلى known_hosts — عند الدفع فقط
-      - name: 🧩 Add server to known_hosts
+      - name: Add server to known_hosts
         if: github.event_name == 'push'
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          # لو منفذ غير 22:
+          # ssh-keyscan -p ${{ secrets.SERVER_SSH_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 7) اختبار اتصال SSH — عند الدفع فقط
-      - name: 🧪 Test SSH connection
-        if: github.event_name == 'push'
-        run: ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo ok"
+      - name: 🧪 Test SSH (verbose)
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}   # root أو dvc (يجب أن يطابق صاحب المفتاح العام على السيرفر)
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}   # 188.227.87.3
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}   # اختياري، 22 افتراضيًا
+        run: |
+          ssh -o StrictHostKeyChecking=yes -vvv ${SERVER_USER}@${SERVER_HOST} ${SERVER_SSH_PORT:+-p ${SERVER_SSH_PORT}} "echo ok"
+
+      - name: DVC push (example)
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+        run: |
+          # اجعل DVC يستخدم نفس المضيف والمفتاح عبر URL SSH
+          dvc remote modify origin url ssh://${SERVER_USER}@${SERVER_HOST}${SERVER_SSH_PORT:+:${SERVER_SSH_PORT}}/dvc-storage/files
+          dvc push -v
 
       # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز) — عند الدفع فقط
       - name: 🧼 Unset DVC keyfile if present
