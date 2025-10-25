@@ -10,22 +10,14 @@ jobs:
   build-train-deploy:
     runs-on: ubuntu-latest
 
-    # ⬇ متغيرات البيئة المتاحة لخطوات التدريب (DVC) والنشر
-    env:
-      WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-      WANDB_PROJECT: mlops-monitoring
-      # WANDB_ENTITY: your-entity-if-used   # اتركه غير معرّف إن لم تستخدم Teams
-
     steps:
       # 1) سحب الكود
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-        
-
       # 2) إعداد Python
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
@@ -45,89 +37,57 @@ jobs:
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      
-      - name: Start ssh-agent and add key
+      # 5) تحميل مفاتيح SSH (DVC + السيرفر) دفعة واحدة
+      - name: 🔑 Load SSH keys (DVC + Deploy)
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: |
             ${{ secrets.SERVER_SSH_KEY }}
 
-      - name: Add server to known_hosts
+      # 6) إضافة السيرفر إلى known_hosts
+      - name: 🧩 Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
-          if [ -n "${{ secrets.SERVER_SSH_PORT }}" ]; then
-            ssh-keyscan -p ${{ secrets.SERVER_SSH_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          else
-            ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          fi
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # (تشخيص اختياري) اعرض المفاتيح المحمّلة في agent
-      - name: List loaded keys
-        run: ssh-add -l
+      # 7) اختبار اتصال SSH (بعد تحميل المفاتيح)
+      - name: 🧪 Test SSH connection
+        run: ssh -o StrictHostKeyChecking=yes ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo ok"
 
-      - name: Test SSH (verbose)
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}   # root
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}   # 188.227.87.3
-          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}   # 22 إن لم تُحدّده
-        run: |
-          ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-              ${SERVER_SSH_PORT:+-p ${SERVER_SSH_PORT}} \
-              ${SERVER_USER}@${SERVER_HOST} "echo ok"
-
-      - name: DVC push (example)
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
-        run: |
-          # اجعل DVC يستخدم نفس المضيف والمفتاح عبر URL SSH
-          dvc remote modify origin url ssh://${SERVER_USER}@${SERVER_HOST}${SERVER_SSH_PORT:+:${SERVER_SSH_PORT}}/dvc-storage/files
-          dvc push -v
-
-      # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز) — عند الدفع فقط
+      # 8) تنظيف أي keyfile محفوظ داخل dvc config (لتفادي مسارات ويندوز)
       - name: 🧼 Unset DVC keyfile if present
-        if: github.event_name == 'push'
         run: dvc config --unset "remote.origin.keyfile" || true
 
-      # (تم حذف خطوة wandb login؛ نعتمد على env: WANDB_API_KEY)
-      # 9) ← محذوفة
+      # 9) تسجيل الدخول إلى W&B
+      - name: 🔑 Login to Weights & Biases
+        run: wandb login ${{ secrets.WANDB_API_KEY }}
 
-      # 10) سحب البيانات من DVC — عند الدفع فقط
+      # 10) سحب البيانات من DVC
       - name: 📥 DVC pull data
-        if: github.event_name == 'push'
         run: dvc pull
 
-      # 11) إعادة إنتاج البايبلاين — عند الدفع فقط
+      # 11) إعادة إنتاج البايبلاين
       - name: ⚙️ Reproduce pipeline with DVC
-        if: github.event_name == 'push'
         run: dvc repro
 
-      # 12) دفع بيانات/نماذج DVC إلى الريموت — عند الدفع فقط
-      - name: 📤 DVC push data
-        if: github.event_name == 'push'
-        run: dvc push
-
-      # 13) تسجيل الدخول إلى Docker Hub — عند الدفع فقط
+      # 12) تسجيل الدخول إلى Docker Hub
       - name: 🔑 Log in to Docker Hub
-        if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # 14) إعداد Buildx
+      # 13) إعداد Buildx
       - name: 🛠️ Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 15) إنشاء tag زمني
+      # 14) إنشاء tag زمني
       - name: 🏷️ Generate Docker image tag
         id: tagger
         run: echo "tag=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      # 16) بناء ورفع الصورة — عند الدفع فقط
+      # 15) بناء ورفع الصورة مع كاش GHA
       - name: 🐳 Build and Push Docker Image
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -138,16 +98,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 17) التحقق من وجود مفتاح النشر — عند الدفع فقط
+      # 16) التحقق من وجود مفتاح النشر (للتشخيص)
       - name: ✅ Check deploy key presence
-        if: github.event_name == 'push'
         run: |
           if [ -z "${{ secrets.SERVER_SSH_KEY }}" ]; then
             echo "❌ SERVER_SSH_KEY is empty or unavailable"; exit 1
           fi
           echo "✅ SERVER_SSH_KEY is set."
 
-      # 18) نشر التطبيق + Health Check — عند الدفع فقط
+      # 17) نشر التطبيق + Health Check
       - name: 🚀 Deploy via SSH (docker run + health check)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -161,7 +120,6 @@ jobs:
 
           IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
-          # تسجيل الدخول إذا الصورة خاصة (تجاهل الفشل إن كانت عامة)
           echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
 
           docker pull -q "$IMAGE"
@@ -169,19 +127,15 @@ jobs:
           docker stop mlops-api || true
           docker rm mlops-api || true
 
-          # تمرير متغيرات البيئة الضرورية للتوافق مع API وW&B
           docker run -d --name mlops-api \
             -p 80:8000 \
             --restart=always \
-            -e WANDB_API_KEY='${{ secrets.WANDB_API_KEY }}' \
-            -e WANDB_PROJECT='mlops-monitoring' \
-            -e TEXT_MODEL_NAME='baseline' \
-            -e IMG_MODEL_NAME='baseline' \
+            -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
             "$IMAGE"
 
           echo "⏳ Waiting for API to start..."
           for i in {1..10}; do
-            if curl -sSf http://localhost:80/health > /dev/null; then
+            if curl -sSf http://localhost:80/docs > /dev/null; then
               echo "✅ API is up and running"
               exit 0
             fi
@@ -194,12 +148,12 @@ jobs:
           exit 1
           EOF
 
-      # 19) ملخص التنفيذ
+
+      # 18) ملخص التنفيذ
       - name: 📜 Summary
         if: always()
         run: |
           echo "## ✅ Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker image tag:" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker images pushed:" >> $GITHUB_STEP_SUMMARY
           echo "  * latest" >> $GITHUB_STEP_SUMMARY
           echo "  * ${{ steps.tagger.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-
