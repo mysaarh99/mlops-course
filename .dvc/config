@@ -1,6 +1,7 @@
 [core]
     remote = origin
 ['remote "origin"']
-    url = ssh://root@31.44.0.199:/root/dvc-storage
+    url = ssh://root@188.227.87.3:/root/dvc-storage
     user = root
     ask_password = false
+    port = 22
