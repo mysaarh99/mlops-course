@@ -45,29 +45,35 @@ jobs:
           pip install -r requirements.txt
           pip install dvc-ssh
 
-      - name: 🔑 Start ssh-agent and add key
-        if: github.event_name == 'push'
+      
+      - name: Start ssh-agent and add key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: |
-            ${{ secrets.DVC_SSH_KEY }}
             ${{ secrets.SERVER_SSH_KEY }}
 
       - name: Add server to known_hosts
-        if: github.event_name == 'push'
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          # لو منفذ غير 22:
-          # ssh-keyscan -p ${{ secrets.SERVER_SSH_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ secrets.SERVER_SSH_PORT }}" ]; then
+            ssh-keyscan -p ${{ secrets.SERVER_SSH_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          fi
 
-      - name: 🧪 Test SSH (verbose)
+      # (تشخيص اختياري) اعرض المفاتيح المحمّلة في agent
+      - name: List loaded keys
+        run: ssh-add -l
+
+      - name: Test SSH (verbose)
         env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}   # root أو dvc (يجب أن يطابق صاحب المفتاح العام على السيرفر)
+          SERVER_USER: ${{ secrets.SERVER_USER }}   # root
           SERVER_HOST: ${{ secrets.SERVER_HOST }}   # 188.227.87.3
-          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}   # اختياري، 22 افتراضيًا
+          SERVER_SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}   # 22 إن لم تُحدّده
         run: |
-          ssh -o StrictHostKeyChecking=yes -vvv ${SERVER_USER}@${SERVER_HOST} ${SERVER_SSH_PORT:+-p ${SERVER_SSH_PORT}} "echo ok"
+          ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+              ${SERVER_SSH_PORT:+-p ${SERVER_SSH_PORT}} \
+              ${SERVER_USER}@${SERVER_HOST} "echo ok"
 
       - name: DVC push (example)
         env:
