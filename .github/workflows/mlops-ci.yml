@@ -107,7 +107,7 @@ jobs:
           echo "✅ SERVER_SSH_KEY is set."
 
       # 17) نشر التطبيق + Health Check
-      - name: 🚀 Deploy via SSH (docker run + health check)
+      - name: 🚀 Deploy via SSH (install docker if missing + run + health check)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           ssh -tt \
@@ -115,27 +115,51 @@ jobs:
             -o TCPKeepAlive=yes \
             -o ServerAliveInterval=15 \
             -o ServerAliveCountMax=6 \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} <<'EOF'
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" <<'EOF'
           set -e
 
           IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/mlops-api:latest"
 
-          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
+          # 0) تحديث الحزم الأساسية
+          if ! command -v curl >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y curl
+          fi
 
-          docker pull -q "$IMAGE"
+          # 1) تثبيت Docker إن لم يكن موجودًا
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "🧩 Installing Docker..."
+            # أبسط خيار ثابت على Ubuntu
+            sudo apt-get update -y
+            sudo apt-get install -y docker.io
+            # تأكد من عمل الخدمة
+            sudo systemctl enable --now docker
+            # نستخدم sudo لاحقًا بدل إضافة المستخدم لمجموعة docker (لأنها تحتاج تسجيل خروج/دخول)
+          fi
 
-          docker stop mlops-api || true
-          docker rm mlops-api || true
+          # 2) تسجيل دخول Docker Hub (لا تفشل الـ pipeline لو فشل اللوجين)
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | sudo docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin || true
 
-          docker run -d --name mlops-api \
+          # 3) سحب الصورة وتشغيل الحاوية
+          sudo docker pull -q "$IMAGE"
+
+          # أوقف/احذف النسخة القديمة إن وجدت
+          sudo docker stop mlops-api || true
+          sudo docker rm mlops-api || true
+
+          # 4) تشغيل الخدمة
+          # ملاحظة: المنفذ 80 يتطلب صلاحيات root؛ نحن نستخدم sudo docker لذلك لا مشكلة.
+          # إن كان عندك Nginx/Apache على 80 سيحدث تعارض—غيّر المنفذ مثلاً إلى 8080:8000 ثم عدّل فحص الصحة.
+          sudo docker run -d --name mlops-api \
             -p 80:8000 \
             --restart=always \
-            -e WANDB_API_KEY=${{ secrets.WANDB_API_KEY }} \
+            -e WANDB_API_KEY="${{ secrets.WANDB_API_KEY }}" \
             "$IMAGE"
 
+          # 5) فحص الصحة
           echo "⏳ Waiting for API to start..."
           for i in {1..10}; do
-            if curl -sSf http://localhost:80/docs > /dev/null; then
+            if curl -sSf http://localhost:80/docs >/dev/null; then
               echo "✅ API is up and running"
               exit 0
             fi
@@ -144,7 +168,7 @@ jobs:
           done
 
           echo "❌ API did not start in expected time"
-          docker logs --tail=200 mlops-api || true
+          sudo docker logs --tail=200 mlops-api || true
           exit 1
           EOF
 
