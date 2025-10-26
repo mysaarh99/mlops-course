@@ -60,7 +60,6 @@ stages:
       - data/cifar10/test.npz:
           cache: false
 
-  # تدريب الصور - بدون أداة تتبّع (Baseline)
   train_cifar10_baseline:
     cmd: python scripts/train_cifar10.py
     deps:
