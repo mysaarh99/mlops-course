@@ -85,7 +85,8 @@ async def health_check():
         "text_model_loaded": text_model is not None,
         "image_model_loaded": image_model is not None,
         "text_model_path": TEXT_MODEL_PATH,
-        "image_model_path": IMG_MODEL_PATH
+        "image_model_path": IMG_MODEL_PATH,
+        "classes":classes
     }
 
 # ======== معالجة الصورة ========
