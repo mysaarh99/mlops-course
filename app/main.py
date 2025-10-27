@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 
 # ========= إعدادات قابلة للتهيئة =========
 # اختر أي نموذج نص/صورة عبر المتغيرات البيئية
-TEXT_MODEL_NAME = os.getenv("TEXT_MODEL_NAME", "baseline")   # baseline|mlflow|wandb
-IMG_MODEL_NAME  = os.getenv("IMG_MODEL_NAME",  "baseline")   # baseline|mlflow|wandb
+TEXT_MODEL_NAME = os.getenv("TEXT_MODEL_NAME", "mlflow")   # baseline|mlflow|wandb
+IMG_MODEL_NAME  = os.getenv("IMG_MODEL_NAME",  "wandb")   # baseline|mlflow|wandb
 
 TEXT_MODEL_PATH = f"models/text_{TEXT_MODEL_NAME}_model.pkl"
 VECT_PATH       = f"models/text_{TEXT_MODEL_NAME}_vectorizer.pkl"
@@ -75,6 +75,11 @@ async def log_requests(request: Request, call_next):
 
 @app.get("/health")
 async def health_check():
+    classes = None
+    try:
+        classes = text_model.classes_.tolist() if text_model is not None else None
+    except Exception:
+        classes = None
     return {
         "status": "ok",
         "text_model_loaded": text_model is not None,
